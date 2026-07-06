@@ -1,35 +1,25 @@
 // ===== 茧房扫描分析 v2 =====
-// 关键修复：LLM 必须对所有 24 维度给出值，而非只覆盖少数
-// 如果用户说"从不看XX"，对应维度必须降低
+// 不静默降级：LLM 失败时抛出错误，由上层路由处理
 
 import { COGNITIVE_DIMENSIONS } from "../_knowledge/domains.js";
 import { analyzeAllDimensions } from "./llm.js";
 
 export async function buildExposureMap(userInput?: string): Promise<Map<string, number>> {
-  // 无输入 → demo 默认值
+  // 无输入 → demo 默认值（仅用于"直接体验"模式）
   if (!userInput?.trim()) {
     const m = new Map<string, number>();
     COGNITIVE_DIMENSIONS.forEach((d) => m.set(d.id, d.count));
     return m;
   }
 
-  try {
-    // LLM 必须返回全部 24 维度的暴露值
-    const llmExposure = await analyzeAllDimensions(userInput.trim());
-    // 只保留已知维度
-    const knownIds = new Set(COGNITIVE_DIMENSIONS.map((d) => d.id));
-    const result = new Map<string, number>();
-    COGNITIVE_DIMENSIONS.forEach((d) => {
-      const val = llmExposure.get(d.id);
-      result.set(d.id, val !== undefined ? val : d.count);
-    });
-    return result;
-  } catch (e) {
-    console.warn("[Analyzer] LLM failed, using defaults");
-    const m = new Map<string, number>();
-    COGNITIVE_DIMENSIONS.forEach((d) => m.set(d.id, d.count));
-    return m;
-  }
+  // 有输入 → 必须调用 DeepSeek 分析，失败则抛错
+  const llmExposure = await analyzeAllDimensions(userInput.trim());
+  const result = new Map<string, number>();
+  COGNITIVE_DIMENSIONS.forEach((d) => {
+    const val = llmExposure.get(d.id);
+    result.set(d.id, val !== undefined ? val : d.count);
+  });
+  return result;
 }
 
 export const analyzeExposure = buildExposureMap;

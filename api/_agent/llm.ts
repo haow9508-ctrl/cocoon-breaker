@@ -1,5 +1,6 @@
 // ===== DeepSeek LLM Client =====
-// 用于生成「为什么推荐」解释、推荐排序和认知分析
+// 纯生成式 Agent — 无知识库、无RAG
+// 所有内容由 DeepSeek Transformer 动态生成
 
 const DEEPSEEK_BASE = "https://api.deepseek.com/v1";
 const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY || "";
@@ -15,10 +16,19 @@ export interface LLMResponse {
   usage?: { prompt_tokens: number; completion_tokens: number };
 }
 
+/** 检查 API Key 是否配置 */
+export function isApiKeyConfigured(): boolean {
+  return !!DEEPSEEK_API_KEY;
+}
+
 export async function chatCompletion(
   messages: ChatMessage[],
   options?: { temperature?: number; maxTokens?: number }
 ): Promise<LLMResponse> {
+  if (!DEEPSEEK_API_KEY) {
+    throw new Error("DEEPSEEK_API_KEY not configured");
+  }
+
   const res = await fetch(`${DEEPSEEK_BASE}/chat/completions`, {
     method: "POST",
     headers: {
@@ -46,7 +56,120 @@ export async function chatCompletion(
   };
 }
 
-/** 根据用户的认知暴露图，生成「为什么推荐」的 AI 解释 */
+// ===== Agent Pipeline ② 分析层 =====
+
+/** ② 分析：根据用户自然语言输入，生成24维认知暴露值 */
+export async function analyzeAllDimensions(
+  userInput: string
+): Promise<Map<string, number>> {
+  const dimensionList = "entertainment,humor,beauty,movie,food,gaming,tech,auto,sports,finance,history,psychology,art,literature,sociology,philosophy,physics,astronomy,classical,biology,archaeology,linguistics,architecture,math";
+  const names = "娱乐八卦,搞笑视频,美妆穿搭,影视综艺,美食,游戏电竞,科技数码,汽车,体育,财经投资,历史,心理学,艺术设计,文学,社会学,哲学,粒子物理,天文学,古典音乐,生物学,考古学,语言学,建筑学,数学";
+
+  const messages: ChatMessage[] = [
+    {
+      role: "system",
+      content: `你是认知暴露分析器。根据用户描述，为其 30 天内在这 24 个维度的内容接触次数（0-1000 整数）打分。关键规则：
+1. 用户明确提到"经常看/天天刷"→ 200-800；"偶尔看"→ 50-150；"从不/不看"→ 0-10；未提及 → 保留低值(10-30)
+2. 不要用默认值！根据用户实际描述推断。
+3. 输出纯 JSON 对象，24 个 key 必须全部包含。只输出 JSON。
+
+维度ID: ${dimensionList}
+中文名: ${names}`,
+    },
+    { role: "user", content: userInput },
+  ];
+
+  const res = await chatCompletion(messages, { temperature: 0, maxTokens: 800 });
+  const jsonMatch = res.content.match(/\{[\s\S]*\}/);
+  if (jsonMatch) {
+    const parsed = JSON.parse(jsonMatch[0]);
+    const result = new Map<string, number>();
+    for (const [k, v] of Object.entries(parsed)) {
+      result.set(k, typeof v === "number" ? v : Number(v) || 0);
+    }
+    if (result.size >= 20) return result;
+  }
+
+  throw new Error("DeepSeek 分析失败：无法解析24维暴露值");
+}
+
+// ===== Agent Pipeline ④ 生成层 =====
+
+export interface GeneratedContent {
+  dimensionId: string;
+  dimensionName: string;
+  title: string;
+  why: string;
+  description: string;
+  source: string;
+  readTimeMinutes: number;
+}
+
+/** ④ 生成：根据用户的盲区维度，由 DeepSeek 动态生成教育性内容 */
+export async function generateDailyContent(
+  blindSpots: Array<{ id: string; name: string; exposureCount: number }>,
+  highExposureNames: string[]
+): Promise<GeneratedContent[]> {
+  const blindSpotDesc = blindSpots.map(b => `${b.id}(${b.name}, 暴露值:${b.exposureCount})`).join("、");
+  const highDesc = highExposureNames.join("、") || "暂无明显高频领域";
+
+  const messages: ChatMessage[] = [
+    {
+      role: "system",
+      content: `你是「茧房爆破器」的反推荐引擎内容生成器。你的任务：为用户的认知盲区动态生成教育性内容。
+
+核心原则：
+1. 内容必须与用户高频领域形成认知冲击和对比
+2. 标题要有吸引力、有悬念，不要百科式标题
+3. 摘要150-200字，要有洞察力、有冲击力，能让人产生"原来如此"的感觉
+4. 来源标注真实（维基百科/学术论文/经典著作/科学期刊）
+5. 阅读时间5-10分钟
+6. 推荐理由一句话，说明为什么这条内容能打破用户的信息茧房
+
+输出格式：纯 JSON 数组，每个对象包含：
+- dimensionId: 维度ID
+- dimensionName: 维度中文名
+- title: 标题
+- why: 推荐理由（一句话）
+- description: 摘要（150-200字）
+- source: 来源
+- readTimeMinutes: 阅读时间（整数）
+
+只输出 JSON 数组，不要输出其他内容。`,
+    },
+    {
+      role: "user",
+      content: `用户的认知盲区（需要生成内容的维度）：
+${blindSpotDesc}
+
+用户的高频领域（用于形成认知冲击）：
+${highDesc}
+
+请为这 ${blindSpots.length} 个盲区维度各生成一篇内容，输出 JSON 数组：`,
+    },
+  ];
+
+  const res = await chatCompletion(messages, { temperature: 0.8, maxTokens: 2000 });
+  const jsonMatch = res.content.match(/\[[\s\S]*\]/);
+  if (jsonMatch) {
+    const parsed = JSON.parse(jsonMatch[0]);
+    if (Array.isArray(parsed) && parsed.length > 0) {
+      return parsed.map((item: any) => ({
+        dimensionId: item.dimensionId || "",
+        dimensionName: item.dimensionName || "",
+        title: item.title || "",
+        why: item.why || "",
+        description: item.description || "",
+        source: item.source || "",
+        readTimeMinutes: item.readTimeMinutes || 5,
+      }));
+    }
+  }
+
+  throw new Error("DeepSeek 内容生成失败：无法解析生成结果");
+}
+
+/** 生成「为什么推荐」的 AI 解释（用于内容详情页） */
 export async function generateWhyRecommend(
   dimensionName: string,
   dimensionId: string,
@@ -79,50 +202,6 @@ export async function generateWhyRecommend(
   }
 }
 
-/** 强制 LLM 返回全部 24 维度暴露值（修复差异化 bug） */
-export async function analyzeAllDimensions(
-  userInput: string
-): Promise<Map<string, number>> {
-  const dimensionList = "entertainment,humor,beauty,movie,food,gaming,tech,auto,sports,finance,history,psychology,art,literature,sociology,philosophy,physics,astronomy,classical,biology,archaeology,linguistics,architecture,math";
-  const names = "娱乐八卦,搞笑视频,美妆穿搭,影视综艺,美食,游戏电竞,科技数码,汽车,体育,财经投资,历史,心理学,艺术设计,文学,社会学,哲学,粒子物理,天文学,古典音乐,生物学,考古学,语言学,建筑学,数学";
-
-  const messages: ChatMessage[] = [
-    {
-      role: "system",
-      content: `你是认知暴露分析器。根据用户描述，为其 30 天内在这 24 个维度的内容接触次数（0-1000 整数）打分。关键规则：
-1. 用户明确提到"经常看/天天刷"→ 200-800；"偶尔看"→ 50-150；"从不/不看"→ 0-10；未提及 → 保留低值(10-30)
-2. 不要用默认值！根据用户实际描述推断。
-3. 输出纯 JSON 对象，24 个 key 必须全部包含。只输出 JSON。
-
-维度ID: ${dimensionList}
-中文名: ${names}`,
-    },
-    { role: "user", content: userInput },
-  ];
-
-  try {
-    const res = await chatCompletion(messages, { temperature: 0, maxTokens: 800 });
-    const jsonMatch = res.content.match(/\{[\s\S]*\}/);
-    if (jsonMatch) {
-      const parsed = JSON.parse(jsonMatch[0]);
-      const result = new Map<string, number>();
-      for (const [k, v] of Object.entries(parsed)) {
-        result.set(k, typeof v === "number" ? v : Number(v) || 0);
-      }
-      if (result.size >= 20) return result; // 必须覆盖大部分维度
-    }
-  } catch {}
-
-  return new Map(); // 失败则返回空，上层用默认值
-}
-
-/** 根据用户输入的自然语言，抽取 24 个维度的暴露次数（旧版，保留兼容） */
-export async function analyzeCocoonExposure(
-  userInput: string
-): Promise<Map<string, number>> {
-  return analyzeAllDimensions(userInput);
-}
-
 /** 生成「这刷新了我什么认知」的引导反馈 */
 export async function generateFeedbackPrompt(
   dimensionName: string,
@@ -147,106 +226,31 @@ export async function generateFeedbackPrompt(
   }
 }
 
-/**
- * 智能推荐：让 DeepSeek 根据用户的具体暴露数据，
- * 从候选内容中选择最合适的 3 篇，并给出选择理由。
- * 返回选中的 contentId 数组（顺序即优先级）。
- */
-export async function smartSelectRecommendations(
-  candidates: Array<{ id: string; title: string; description: string; dimensionName: string; exposureCount: number }>,
-  userExposure: Map<string, number>,
-  highExposureNames: string[],
-  limit: number = 3
-): Promise<string[]> {
-  if (candidates.length <= limit) {
-    return candidates.map((c) => c.id);
-  }
+// ===== Agent Pipeline ⑤ 交互层 =====
 
-  // 构造用户画像摘要
-  const sorted = Array.from(userExposure.entries()).sort((a, b) => b[1] - a[1]);
-  const topExposure = sorted.slice(0, 5).map(([name, count]) => `${name}(${count})`).join("、");
-  const blindSpots = sorted.slice(-8).filter(([_, c]) => c < 30).map(([name, count]) => `${name}(${count})`).join("、");
-
-  const candidateList = candidates.map((c, i) =>
-    `${i + 1}. [${c.dimensionName}] ${c.title}（暴露:${c.exposureCount}）- ${c.description.slice(0, 60)}...`
-  ).join("\n");
-
-  const messages: ChatMessage[] = [
-    {
-      role: "system",
-      content: `你是「茧房爆破器」的反推荐引擎。你的任务：根据用户的认知暴露数据，从候选内容中选择 ${limit} 篇最能让用户突破认知茧房的内容。
-
-选择原则：
-1. 优先选择用户完全没接触过的领域（暴露值为0或极低）
-2. 与用户高频领域形成对比和冲击（比如用户天天看娱乐八卦，就推哲学/物理）
-3. 3篇内容应来自不同维度，保证多样性
-4. 考虑内容的「冲击力」——能真正让用户产生认知震荡的优先
-
-输出格式：只输出选中的编号，用逗号分隔，如 "3,7,12"。不要输出其他内容。`,
-    },
-    {
-      role: "user",
-      content: `用户画像：
-- 高频领域：${topExposure || "暂无"}
-- 盲区领域：${blindSpots || "暂无"}
-
-候选内容：
-${candidateList}
-
-请选择 ${limit} 篇，输出编号（用逗号分隔）：`,
-    },
-  ];
-
-  try {
-    const res = await chatCompletion(messages, { temperature: 0.5, maxTokens: 50 });
-    const numbers = res.content.match(/\d+/g);
-    if (numbers && numbers.length > 0) {
-      const selectedIds: string[] = [];
-      for (const numStr of numbers) {
-        const idx = parseInt(numStr) - 1;
-        if (idx >= 0 && idx < candidates.length && !selectedIds.includes(candidates[idx].id)) {
-          selectedIds.push(candidates[idx].id);
-        }
-        if (selectedIds.length >= limit) break;
-      }
-      if (selectedIds.length > 0) return selectedIds;
-    }
-  } catch (e) {
-    console.warn("[LLM] smartSelect failed, falling back to random");
-  }
-
-  // fallback: 随机选择
-  const shuffled = [...candidates].sort(() => Math.random() - 0.5);
-  return shuffled.slice(0, limit).map((c) => c.id);
-}
-
-/**
- * 智能聊天：支持多轮对话，根据用户输入和暴露数据给出个性化回复。
- */
+/** ⑤ 交互：多轮对话，根据用户暴露数据个性化回复 */
 export async function chatWithAssistant(
   userMessage: string,
   chatHistory: Array<{ role: string; content: string }>,
-  userExposure: Map<string, number>,
-  availableContent: Array<{ id: string; title: string; dimensionName: string; description: string }>
+  userExposure: Map<string, number>
 ): Promise<string> {
   const sorted = Array.from(userExposure.entries()).sort((a, b) => b[1] - a[1]);
   const topExposure = sorted.slice(0, 5).map(([name, count]) => `${name}(${count}次)`).join("、");
   const blindSpots = sorted.filter(([_, c]) => c < 30).slice(0, 8).map(([name]) => name).join("、");
-  const contentList = availableContent.map((c) => `- [${c.dimensionName}] ${c.title}: ${c.description.slice(0, 50)}`).join("\n");
 
-  const systemPrompt = `你是「茧房爆破器」的智能助手。用户的数据如下：
+  const systemPrompt = `你是「茧房爆破器」的智能助手，一个反推荐引擎的对话界面。
+
+用户的认知暴露数据：
 - 高频领域（用户经常看的）：${topExposure || "暂无"}
 - 盲区领域（用户从没看过的）：${blindSpots || "暂无"}
 
-可用内容库：
-${contentList}
-
 你的职责：
-1. 根据用户的问题，给出个性化的回答和建议
-2. 如果用户问推荐什么，从内容库中选择1-2篇最适合的，并说明为什么
-3. 如果用户问某个领域，介绍该领域的内容并引导阅读
+1. 根据用户的认知暴露数据，给出个性化的回答和建议
+2. 如果用户问推荐什么，根据用户的盲区领域，描述一个值得探索的方向或概念（不需要具体的文章，描述领域本身的价值）
+3. 如果用户问某个领域，介绍该领域为什么值得探索，以及它和用户高频领域的关联
 4. 回答要简洁有力，不超过200字
-5. 语气像朋友聊天，不要太正式，不要太"AI"`;
+5. 语气像朋友聊天，不要太正式，不要太"AI"
+6. 你的目标是帮助用户突破认知茧房，不是迎合用户已有偏好`;
 
   const messages: ChatMessage[] = [
     { role: "system", content: systemPrompt },
@@ -257,10 +261,6 @@ ${contentList}
     { role: "user", content: userMessage },
   ];
 
-  try {
-    const res = await chatCompletion(messages, { temperature: 0.7, maxTokens: 300 });
-    return res.content.trim();
-  } catch (e) {
-    return "抱歉，我暂时无法回复。请稍后再试。";
-  }
+  const res = await chatCompletion(messages, { temperature: 0.7, maxTokens: 300 });
+  return res.content.trim();
 }
