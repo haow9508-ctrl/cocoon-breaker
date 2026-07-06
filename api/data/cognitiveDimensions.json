@@ -1,0 +1,226 @@
+[
+  {
+    "id": "particle-physics",
+    "name": "粒子物理",
+    "category": "science",
+    "categoryName": "科学",
+    "description": "探索构成宇宙的基本粒子及其相互作用",
+    "icon": "⚛️"
+  },
+  {
+    "id": "astronomy",
+    "name": "天文学",
+    "category": "science",
+    "categoryName": "科学",
+    "description": "研究宇宙中的天体、星系和宇宙演化",
+    "icon": "🔭"
+  },
+  {
+    "id": "biology",
+    "name": "生物学",
+    "category": "science",
+    "categoryName": "科学",
+    "description": "研究生命现象和生命活动规律",
+    "icon": "🧬"
+  },
+  {
+    "id": "mathematics",
+    "name": "数学",
+    "category": "science",
+    "categoryName": "科学",
+    "description": "研究数量、结构、空间和变化的抽象科学",
+    "icon": "📐"
+  },
+  {
+    "id": "chemistry",
+    "name": "化学",
+    "category": "science",
+    "categoryName": "科学",
+    "description": "研究物质的组成、结构、性质和变化规律",
+    "icon": "⚗️"
+  },
+  {
+    "id": "neuroscience",
+    "name": "神经科学",
+    "category": "science",
+    "categoryName": "科学",
+    "description": "研究神经系统的结构、功能和发育",
+    "icon": "🧠"
+  },
+  {
+    "id": "classical-music",
+    "name": "古典音乐",
+    "category": "art",
+    "categoryName": "艺术",
+    "description": "西方古典音乐的历史、作曲家和经典作品",
+    "icon": "🎻"
+  },
+  {
+    "id": "art-design",
+    "name": "艺术设计",
+    "category": "art",
+    "categoryName": "艺术",
+    "description": "视觉艺术、设计原则和美学理论",
+    "icon": "🎨"
+  },
+  {
+    "id": "literature",
+    "name": "文学",
+    "category": "art",
+    "categoryName": "艺术",
+    "description": "世界文学经典、文学理论和批评",
+    "icon": "📚"
+  },
+  {
+    "id": "architecture",
+    "name": "建筑",
+    "category": "art",
+    "categoryName": "艺术",
+    "description": "建筑史、建筑理论和著名建筑作品",
+    "icon": "🏛️"
+  },
+  {
+    "id": "theater",
+    "name": "戏剧",
+    "category": "art",
+    "categoryName": "艺术",
+    "description": "戏剧史、戏剧理论和经典戏剧作品",
+    "icon": "🎭"
+  },
+  {
+    "id": "photography",
+    "name": "摄影",
+    "category": "art",
+    "categoryName": "艺术",
+    "description": "摄影史、摄影理论和著名摄影师",
+    "icon": "📷"
+  },
+  {
+    "id": "sociology",
+    "name": "社会学",
+    "category": "society",
+    "categoryName": "社会",
+    "description": "研究社会结构、社会行为和社会变迁",
+    "icon": "👥"
+  },
+  {
+    "id": "psychology",
+    "name": "心理学",
+    "category": "society",
+    "categoryName": "社会",
+    "description": "研究人类心理和行为的科学",
+    "icon": "🧩"
+  },
+  {
+    "id": "philosophy",
+    "name": "哲学",
+    "category": "society",
+    "categoryName": "社会",
+    "description": "探索存在、知识、价值和理性的根本问题",
+    "icon": "🤔"
+  },
+  {
+    "id": "economics",
+    "name": "经济学",
+    "category": "society",
+    "categoryName": "社会",
+    "description": "研究资源配置、生产、分配和消费",
+    "icon": "📊"
+  },
+  {
+    "id": "political-science",
+    "name": "政治学",
+    "category": "society",
+    "categoryName": "社会",
+    "description": "研究政治制度、政治行为和公共政策",
+    "icon": "🏛️"
+  },
+  {
+    "id": "anthropology",
+    "name": "人类学",
+    "category": "society",
+    "categoryName": "社会",
+    "description": "研究人类的起源、文化和社会多样性",
+    "icon": "🌍"
+  },
+  {
+    "id": "tech-digital",
+    "name": "科技数码",
+    "category": "technology",
+    "categoryName": "技术",
+    "description": "消费电子、数字产品和科技趋势",
+    "icon": "💻"
+  },
+  {
+    "id": "artificial-intelligence",
+    "name": "人工智能",
+    "category": "technology",
+    "categoryName": "技术",
+    "description": "机器学习、深度学习和AI应用",
+    "icon": "🤖"
+  },
+  {
+    "id": "automotive",
+    "name": "汽车",
+    "category": "technology",
+    "categoryName": "技术",
+    "description": "汽车工程、新能源汽车和汽车文化",
+    "icon": "🚗"
+  },
+  {
+    "id": "aerospace",
+    "name": "航空航天",
+    "category": "technology",
+    "categoryName": "技术",
+    "description": "航空工程、航天探索和太空技术",
+    "icon": "🚀"
+  },
+  {
+    "id": "quantum-computing",
+    "name": "量子计算",
+    "category": "technology",
+    "categoryName": "技术",
+    "description": "量子比特、量子算法和量子计算机",
+    "icon": "⚛️"
+  },
+  {
+    "id": "blockchain",
+    "name": "区块链",
+    "category": "technology",
+    "categoryName": "技术",
+    "description": "分布式账本、加密货币和Web3",
+    "icon": "⛓️"
+  },
+  {
+    "id": "history",
+    "name": "历史",
+    "category": "humanities",
+    "categoryName": "人文",
+    "description": "人类历史的发展、重要事件和人物",
+    "icon": "📜"
+  },
+  {
+    "id": "archaeology",
+    "name": "考古学",
+    "category": "humanities",
+    "categoryName": "人文",
+    "description": "通过物质遗存研究古代人类社会",
+    "icon": "🏺"
+  },
+  {
+    "id": "linguistics",
+    "name": "语言学",
+    "category": "humanities",
+    "categoryName": "人文",
+    "description": "研究语言的结构、历史和使用",
+    "icon": "🗣️"
+  },
+  {
+    "id": "religious-studies",
+    "name": "宗教研究",
+    "category": "humanities",
+    "categoryName": "人文",
+    "description": "研究世界各大宗教的教义、历史和文化",
+    "icon": "🕉️"
+  }
+]

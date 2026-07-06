@@ -1,0 +1,1287 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>茧房爆破器 — 世界上第一个反推荐引擎</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bg: #0a0a0f;
+    --bg-soft: #12121a;
+    --fg: #f5f5f7;
+    --muted: #8a8a99;
+    --border: #1f1f2e;
+    --red: #ff4d4d;
+    --orange: #ff8a3d;
+    --yellow: #ffd23d;
+    --green: #4ade80;
+    --blue: #3d7fff;
+    --cyan: #00d4ff;
+    --purple: #a855f7;
+    --accent: #ff4d4d;
+  }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--bg);
+    color: var(--fg);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+                 "Microsoft YaHei", "Helvetica Neue", Arial, sans-serif;
+    line-height: 1.6;
+    overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* 背景纹理 */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background:
+      radial-gradient(ellipse 80% 50% at 50% -10%, rgba(255,77,77,0.15), transparent 60%),
+      radial-gradient(ellipse 60% 50% at 90% 90%, rgba(61,127,255,0.10), transparent 60%),
+      radial-gradient(ellipse 50% 40% at 10% 60%, rgba(168,85,247,0.08), transparent 60%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 24px;
+    position: relative;
+    z-index: 1;
+  }
+
+  /* ============ NAV ============ */
+  nav {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    background: rgba(10,10,15,0.7);
+    border-bottom: 1px solid var(--border);
+  }
+  .nav-inner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 24px;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: 700;
+    font-size: 16px;
+    letter-spacing: 0.5px;
+  }
+  .logo-mark {
+    width: 28px; height: 28px;
+    border-radius: 8px;
+    background: linear-gradient(135deg, var(--red), var(--purple));
+    display: grid; place-items: center;
+    font-size: 16px;
+    box-shadow: 0 0 20px rgba(255,77,77,0.5);
+  }
+  .nav-links { display: flex; gap: 32px; }
+  .nav-links a {
+    color: var(--muted);
+    text-decoration: none;
+    font-size: 14px;
+    transition: color 0.2s;
+  }
+  .nav-links a:hover { color: var(--fg); }
+  .nav-cta {
+    padding: 8px 16px;
+    background: var(--fg);
+    color: var(--bg);
+    border-radius: 999px;
+    font-size: 13px;
+    font-weight: 600;
+    text-decoration: none;
+    transition: transform 0.2s;
+  }
+  .nav-cta:hover { transform: scale(1.05); }
+
+  /* ============ HERO ============ */
+  .hero {
+    padding: 120px 0 100px;
+    text-align: center;
+    position: relative;
+  }
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 14px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    font-size: 12px;
+    color: var(--muted);
+    background: rgba(255,255,255,0.02);
+    margin-bottom: 32px;
+  }
+  .badge .dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--red);
+    box-shadow: 0 0 10px var(--red);
+    animation: pulse 2s infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+  .hero h1 {
+    font-size: clamp(48px, 8vw, 96px);
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    line-height: 1.05;
+    margin-bottom: 24px;
+    background: linear-gradient(180deg, #fff 0%, #999 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .hero h1 .accent {
+    background: linear-gradient(135deg, var(--red), var(--orange));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .hero .tagline {
+    font-size: clamp(18px, 2.5vw, 24px);
+    color: var(--muted);
+    max-width: 720px;
+    margin: 0 auto 40px;
+    line-height: 1.5;
+  }
+  .hero .tagline strong {
+    color: var(--fg);
+    font-weight: 600;
+  }
+  .hero-cta {
+    display: flex;
+    gap: 16px;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+  .btn {
+    padding: 14px 28px;
+    border-radius: 999px;
+    font-size: 15px;
+    font-weight: 600;
+    text-decoration: none;
+    transition: all 0.2s;
+    border: none;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .btn-primary {
+    background: linear-gradient(135deg, var(--red), var(--orange));
+    color: white;
+    box-shadow: 0 8px 30px rgba(255,77,77,0.4);
+  }
+  .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 12px 40px rgba(255,77,77,0.5); }
+  .btn-ghost {
+    background: rgba(255,255,255,0.05);
+    color: var(--fg);
+    border: 1px solid var(--border);
+  }
+  .btn-ghost:hover { background: rgba(255,255,255,0.1); }
+
+  /* Hero 装饰:茧房可视化 */
+  .hero-cocoon {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 600px;
+    height: 600px;
+    z-index: -1;
+    opacity: 0.4;
+    pointer-events: none;
+  }
+
+  /* ============ SECTION ============ */
+  section { padding: 100px 0; position: relative; }
+  .section-label {
+    display: inline-block;
+    font-size: 13px;
+    color: var(--red);
+    font-weight: 600;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-bottom: 16px;
+  }
+  .section-title {
+    font-size: clamp(32px, 5vw, 52px);
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    line-height: 1.1;
+    margin-bottom: 20px;
+    max-width: 800px;
+  }
+  .section-desc {
+    font-size: 18px;
+    color: var(--muted);
+    max-width: 680px;
+    line-height: 1.6;
+  }
+
+  /* ============ PROBLEM ============ */
+  .problem-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 60px;
+    align-items: center;
+    margin-top: 60px;
+  }
+  @media (max-width: 768px) {
+    .problem-grid { grid-template-columns: 1fr; gap: 40px; }
+  }
+  .compare-card {
+    background: var(--bg-soft);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 32px;
+    position: relative;
+    overflow: hidden;
+  }
+  .compare-card.bad { border-color: rgba(255,77,77,0.3); }
+  .compare-card.good { border-color: rgba(74,222,128,0.3); }
+  .compare-card h3 {
+    font-size: 20px;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .compare-card .tag {
+    font-size: 11px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-weight: 600;
+  }
+  .compare-card.bad .tag { background: rgba(255,77,77,0.15); color: var(--red); }
+  .compare-card.good .tag { background: rgba(74,222,128,0.15); color: var(--green); }
+  .compare-card .formula {
+    font-family: 'SF Mono', Monaco, monospace;
+    font-size: 14px;
+    padding: 16px;
+    background: rgba(0,0,0,0.4);
+    border-radius: 12px;
+    margin: 20px 0;
+    color: var(--muted);
+  }
+  .compare-card .formula b { color: var(--fg); }
+  .compare-card ul {
+    list-style: none;
+    padding: 0;
+  }
+  .compare-card li {
+    padding: 8px 0;
+    color: var(--muted);
+    font-size: 14px;
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+  }
+  .compare-card li::before {
+    content: '→';
+    color: var(--muted);
+    flex-shrink: 0;
+  }
+  .compare-card.good li::before { color: var(--green); }
+  .compare-card.bad li::before { color: var(--red); }
+
+  /* ============ MECHANISM ============ */
+  .mech-steps {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 24px;
+    margin-top: 60px;
+  }
+  @media (max-width: 768px) {
+    .mech-steps { grid-template-columns: 1fr; }
+  }
+  .step {
+    background: var(--bg-soft);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 32px;
+    position: relative;
+    transition: all 0.3s;
+  }
+  .step:hover {
+    transform: translateY(-4px);
+    border-color: var(--red);
+    box-shadow: 0 20px 40px rgba(255,77,77,0.1);
+  }
+  .step-num {
+    font-size: 12px;
+    color: var(--red);
+    font-weight: 700;
+    letter-spacing: 2px;
+    margin-bottom: 16px;
+  }
+  .step h3 {
+    font-size: 22px;
+    margin-bottom: 12px;
+  }
+  .step p {
+    color: var(--muted);
+    font-size: 14px;
+    line-height: 1.7;
+    margin-bottom: 20px;
+  }
+  .step .visual {
+    height: 140px;
+    border-radius: 12px;
+    background: rgba(0,0,0,0.3);
+    display: grid;
+    place-items: center;
+    margin-bottom: 16px;
+    overflow: hidden;
+    position: relative;
+  }
+
+  /* 步骤1:热力图mini */
+  .mini-heatmap {
+    display: grid;
+    grid-template-columns: repeat(8, 1fr);
+    gap: 3px;
+    width: 90%;
+    height: 80%;
+  }
+  .mini-heatmap div {
+    border-radius: 3px;
+    transition: transform 0.3s;
+  }
+  .mini-heatmap div:hover { transform: scale(1.3); }
+
+  /* 步骤2:推送卡片 */
+  .mini-push {
+    width: 90%;
+    background: rgba(255,255,255,0.04);
+    border-left: 3px solid var(--red);
+    padding: 12px;
+    border-radius: 8px;
+    text-align: left;
+  }
+  .mini-push .why {
+    font-size: 10px;
+    color: var(--red);
+    margin-bottom: 6px;
+  }
+  .mini-push .title {
+    font-size: 12px;
+    color: var(--fg);
+    font-weight: 600;
+  }
+
+  /* 步骤3:勋章 */
+  .mini-badge {
+    width: 80px; height: 80px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--red), var(--orange));
+    display: grid; place-items: center;
+    font-size: 32px;
+    box-shadow: 0 0 30px rgba(255,77,77,0.5);
+    animation: badgeFloat 3s ease-in-out infinite;
+  }
+  @keyframes badgeFloat {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-8px); }
+  }
+
+  /* ============ HEATMAP DEMO ============ */
+  .demo-wrapper {
+    margin-top: 60px;
+    background: var(--bg-soft);
+    border: 1px solid var(--border);
+    border-radius: 24px;
+    padding: 40px;
+    position: relative;
+    overflow: hidden;
+  }
+  .demo-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 32px;
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+  .demo-header h3 {
+    font-size: 22px;
+  }
+  .demo-controls {
+    display: flex;
+    gap: 8px;
+  }
+  .demo-btn {
+    padding: 8px 16px;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    color: var(--muted);
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .demo-btn.active, .demo-btn:hover {
+    background: var(--red);
+    color: white;
+    border-color: var(--red);
+  }
+  .heatmap-container {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 12px;
+    margin-bottom: 24px;
+  }
+  @media (max-width: 600px) {
+    .heatmap-container { grid-template-columns: repeat(4, 1fr); }
+  }
+  .cognitive-cell {
+    aspect-ratio: 1;
+    border-radius: 12px;
+    position: relative;
+    cursor: pointer;
+    transition: all 0.3s;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    padding: 10px;
+    overflow: hidden;
+    border: 1px solid rgba(255,255,255,0.05);
+  }
+  .cognitive-cell::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    opacity: 0.85;
+    z-index: 0;
+    transition: opacity 0.3s;
+  }
+  .cognitive-cell:hover {
+    transform: scale(1.05);
+    z-index: 10;
+    border-color: rgba(255,255,255,0.3);
+  }
+  .cognitive-cell:hover::before { opacity: 1; }
+  .cognitive-cell .label {
+    position: relative;
+    z-index: 1;
+    font-size: 12px;
+    font-weight: 600;
+    color: white;
+    text-shadow: 0 1px 4px rgba(0,0,0,0.6);
+  }
+  .cognitive-cell .count {
+    position: relative;
+    z-index: 1;
+    font-size: 10px;
+    color: rgba(255,255,255,0.8);
+    margin-top: 2px;
+  }
+  .cognitive-cell.blind::before {
+    background: repeating-linear-gradient(
+      45deg,
+      rgba(61,127,255,0.2),
+      rgba(61,127,255,0.2) 6px,
+      rgba(61,127,255,0.35) 6px,
+      rgba(61,127,255,0.35) 12px
+    );
+  }
+  .cognitive-cell.blind .label { color: var(--cyan); text-shadow: none; }
+
+  .legend {
+    display: flex;
+    gap: 24px;
+    flex-wrap: wrap;
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 16px;
+  }
+  .legend-item { display: flex; align-items: center; gap: 8px; }
+  .legend-dot {
+    width: 12px; height: 12px;
+    border-radius: 3px;
+  }
+
+  .push-detail {
+    margin-top: 24px;
+    background: rgba(0,0,0,0.3);
+    border-radius: 16px;
+    padding: 24px;
+    border-left: 3px solid var(--red);
+    min-height: 120px;
+    transition: all 0.3s;
+  }
+  .push-detail .why-label {
+    font-size: 11px;
+    color: var(--red);
+    font-weight: 600;
+    letter-spacing: 1px;
+    margin-bottom: 8px;
+  }
+  .push-detail .push-title {
+    font-size: 18px;
+    font-weight: 600;
+    margin-bottom: 8px;
+  }
+  .push-detail .push-desc {
+    color: var(--muted);
+    font-size: 14px;
+    line-height: 1.6;
+  }
+  .push-detail .push-action {
+    margin-top: 16px;
+    display: flex;
+    gap: 12px;
+  }
+
+  /* ============ FLOW ============ */
+  .flow {
+    margin-top: 60px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .flow-step {
+    flex: 1;
+    min-width: 140px;
+    text-align: center;
+    padding: 20px;
+    background: var(--bg-soft);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    position: relative;
+  }
+  .flow-step .icon {
+    font-size: 32px;
+    margin-bottom: 10px;
+  }
+  .flow-step .name {
+    font-size: 13px;
+    font-weight: 600;
+  }
+  .flow-arrow {
+    color: var(--red);
+    font-size: 20px;
+    flex-shrink: 0;
+  }
+  @media (max-width: 768px) {
+    .flow-arrow { transform: rotate(90deg); }
+  }
+
+  /* ============ TECH ============ */
+  .tech-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    margin-top: 60px;
+  }
+  @media (max-width: 900px) { .tech-grid { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 500px) { .tech-grid { grid-template-columns: 1fr; } }
+  .tech-card {
+    background: var(--bg-soft);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 24px;
+    transition: all 0.2s;
+  }
+  .tech-card:hover { border-color: var(--red); }
+  .tech-card .layer {
+    font-size: 11px;
+    color: var(--red);
+    font-weight: 600;
+    letter-spacing: 1px;
+    margin-bottom: 8px;
+  }
+  .tech-card .name {
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 6px;
+  }
+  .tech-card .desc {
+    font-size: 12px;
+    color: var(--muted);
+    line-height: 1.5;
+  }
+
+  /* ============ VALUE ============ */
+  .value-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 24px;
+    margin-top: 60px;
+  }
+  @media (max-width: 768px) { .value-grid { grid-template-columns: 1fr; } }
+  .value-card {
+    padding: 32px;
+    background: linear-gradient(180deg, var(--bg-soft), transparent);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+  }
+  .value-card .icon {
+    width: 48px; height: 48px;
+    border-radius: 12px;
+    background: rgba(255,77,77,0.1);
+    display: grid; place-items: center;
+    font-size: 22px;
+    margin-bottom: 20px;
+  }
+  .value-card h3 {
+    font-size: 18px;
+    margin-bottom: 12px;
+  }
+  .value-card p {
+    color: var(--muted);
+    font-size: 14px;
+    line-height: 1.7;
+  }
+
+  /* ============ CTA ============ */
+  .cta {
+    text-align: center;
+    padding: 120px 0;
+    position: relative;
+  }
+  .cta::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse 60% 50% at 50% 50%, rgba(255,77,77,0.15), transparent 70%);
+    pointer-events: none;
+  }
+  .cta h2 {
+    font-size: clamp(40px, 6vw, 72px);
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    line-height: 1.1;
+    margin-bottom: 24px;
+    position: relative;
+  }
+  .cta h2 .accent {
+    background: linear-gradient(135deg, var(--red), var(--orange));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .cta p {
+    font-size: 18px;
+    color: var(--muted);
+    margin-bottom: 40px;
+    position: relative;
+  }
+
+  /* ============ FOOTER ============ */
+  footer {
+    border-top: 1px solid var(--border);
+    padding: 40px 0;
+    text-align: center;
+    color: var(--muted);
+    font-size: 13px;
+  }
+
+  /* Reveal animation */
+  .reveal {
+    opacity: 0;
+    transform: translateY(30px);
+    transition: opacity 0.8s, transform 0.8s;
+  }
+  .reveal.visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  /* Scan animation */
+  @keyframes scanLine {
+    0% { transform: translateY(-100%); }
+    100% { transform: translateY(100%); }
+  }
+  .scanning .cognitive-cell::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(180deg, transparent, rgba(255,77,77,0.4), transparent);
+    animation: scanLine 1.5s ease-in-out;
+    z-index: 2;
+  }
+</style>
+</head>
+<body>
+
+<!-- ============ NAV ============ -->
+<nav>
+  <div class="nav-inner">
+    <div class="logo">
+      <div class="logo-mark">茧</div>
+      <span>茧房爆破器</span>
+    </div>
+    <div class="nav-links">
+      <a href="#problem">问题</a>
+      <a href="#mechanism">机制</a>
+      <a href="#demo">Demo</a>
+      <a href="#tech">技术</a>
+      <a href="#value">价值</a>
+    </div>
+    <a href="#demo" class="nav-cta">体验 Demo</a>
+  </div>
+</nav>
+
+<!-- ============ HERO ============ -->
+<section class="hero">
+  <svg class="hero-cocoon" viewBox="0 0 600 600">
+    <defs>
+      <radialGradient id="cocoonGrad">
+        <stop offset="0%" stop-color="#ff4d4d" stop-opacity="0.4"/>
+        <stop offset="100%" stop-color="#ff4d4d" stop-opacity="0"/>
+      </radialGradient>
+    </defs>
+    <circle cx="300" cy="300" r="280" fill="none" stroke="#ff4d4d" stroke-opacity="0.1" stroke-width="1"/>
+    <circle cx="300" cy="300" r="220" fill="none" stroke="#ff4d4d" stroke-opacity="0.15" stroke-width="1"/>
+    <circle cx="300" cy="300" r="160" fill="none" stroke="#ff4d4d" stroke-opacity="0.2" stroke-width="1"/>
+    <circle cx="300" cy="300" r="100" fill="url(#cocoonGrad)"/>
+    <circle cx="300" cy="300" r="60" fill="#ff4d4d" fill-opacity="0.3"/>
+  </svg>
+
+  <div class="container">
+    <div class="badge">
+      <span class="dot"></span>
+      <span>反推荐引擎 · Anti-Recommendation Engine</span>
+    </div>
+    <h1>
+      所有APP在猜<span class="accent">你喜欢</span>什么<br>
+      只有我们在猜你<span class="accent">不该错过</span>什么
+    </h1>
+    <p class="tagline">
+      世界上第一个<strong>反推荐引擎</strong>。算法目标不是「你看了多久」,
+      而是「<strong>你接触了多少你从没见过的东西</strong>」。
+    </p>
+    <div class="hero-cta">
+      <a href="#demo" class="btn btn-primary">爆破我的茧房 →</a>
+      <a href="#mechanism" class="btn btn-ghost">了解机制</a>
+    </div>
+  </div>
+</section>
+
+<!-- ============ PROBLEM ============ -->
+<section id="problem">
+  <div class="container">
+    <div class="section-label reveal">THE PROBLEM</div>
+    <h2 class="section-title reveal">推荐算法的底层逻辑,正在窄化你的认知</h2>
+    <p class="section-desc reveal">
+      当前互联网的底层操作系统是「推荐算法 = 停留时间最大化」。
+      抖音、知乎、B站——全部在喂你已知的偏好。
+      结果是信息茧房、认知窄化、时间黑洞。
+    </p>
+
+    <div class="problem-grid">
+      <div class="compare-card bad reveal">
+        <h3>传统推荐引擎 <span class="tag">现状</span></h3>
+        <div class="formula">
+          <b>目标函数</b>: maximize(停留时长 × CTR)
+        </div>
+        <ul>
+          <li>喂你已知的偏好,越看越像</li>
+          <li>同一领域无限深挖,跨领域几乎为零</li>
+          <li>信息茧房、认知窄化、时间黑洞</li>
+          <li>用户「爽」但「空」,留不住成长感</li>
+        </ul>
+      </div>
+      <div class="compare-card good reveal">
+        <h3>茧房爆破器 <span class="tag">反叛</span></h3>
+        <div class="formula">
+          <b>目标函数</b>: maximize(认知盲区覆盖维度)
+        </div>
+        <ul>
+          <li>找你从没接触过的领域</li>
+          <li>主动推送盲区,扩展认知边界</li>
+          <li>每条推送附带「为什么推荐」的AI解释</li>
+          <li>突破盲区获得勋章,把认知扩张游戏化</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ MECHANISM ============ -->
+<section id="mechanism">
+  <div class="container">
+    <div class="section-label reveal">HOW IT WORKS</div>
+    <h2 class="section-title reveal">三步爆破你的认知茧房</h2>
+    <p class="section-desc reveal">
+      不是反对推荐技术,而是让推荐技术为认知扩张服务。
+    </p>
+
+    <div class="mech-steps">
+      <div class="step reveal">
+        <div class="step-num">STEP 01</div>
+        <div class="visual">
+          <div class="mini-heatmap" id="miniHeatmap"></div>
+        </div>
+        <h3>茧房扫描</h3>
+        <p>
+          授权读取浏览历史,AI构建你的「认知舒适区地图」,
+          用热力图可视化:哪些领域你<strong>过度暴露</strong>(红色高温区),
+          哪些领域你<strong>完全空白</strong>(蓝色盲区)。
+        </p>
+      </div>
+
+      <div class="step reveal">
+        <div class="step-num">STEP 02</div>
+        <div class="visual">
+          <div class="mini-push">
+            <div class="why">▸ 因为你在「粒子物理」维度暴露 0 次</div>
+            <div class="title">量子纠缠:爱因斯坦的「幽灵般的超距作用」</div>
+          </div>
+        </div>
+        <h3>盲区推送</h3>
+        <p>
+          AI从你的认知盲区中精选高质量内容,每条推送附带一行解释:
+          <em>「推荐这条是因为你过去30天从未接触过粒子物理学的内容」</em>。
+          每天只推 1–3 条,绝不变成新的信息流。
+        </p>
+      </div>
+
+      <div class="step reveal">
+        <div class="step-num">STEP 03</div>
+        <div class="visual">
+          <div class="mini-badge">🏅</div>
+        </div>
+        <h3>爆破勋章</h3>
+        <p>
+          每突破一个盲区维度(读完推送内容 + 完成一个简短的
+          「这刷新了我什么认知」反馈),获得一枚勋章。
+          24个认知维度,72枚勋章,把认知扩张游戏化。
+        </p>
+      </div>
+    </div>
+
+    <!-- Demo 视觉路径 -->
+    <div class="flow reveal">
+      <div class="flow-step">
+        <div class="icon">🗺️</div>
+        <div class="name">热力图</div>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step">
+        <div class="icon">👆</div>
+        <div class="name">点击盲区</div>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step">
+        <div class="icon">🤖</div>
+        <div class="name">AI推送</div>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step">
+        <div class="icon">📖</div>
+        <div class="name">阅读完成</div>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step">
+        <div class="icon">🏅</div>
+        <div class="name">勋章解锁</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ DEMO ============ -->
+<section id="demo">
+  <div class="container">
+    <div class="section-label reveal">LIVE DEMO</div>
+    <h2 class="section-title reveal">看看你的茧房长什么样</h2>
+    <p class="section-desc reveal">
+      点击任意「蓝色盲区」格子,AI会为你推送一条该领域的高质量内容。
+      红色 = 过度暴露,蓝色 = 认知盲区。
+    </p>
+
+    <div class="demo-wrapper reveal">
+      <div class="demo-header">
+        <h3>📊 你的认知舒适区地图(模拟数据)</h3>
+        <div class="demo-controls">
+          <button class="demo-btn" onclick="rescan()">重新扫描</button>
+          <button class="demo-btn active">30天</button>
+        </div>
+      </div>
+
+      <div class="heatmap-container" id="heatmap"></div>
+
+      <div class="legend">
+        <div class="legend-item"><div class="legend-dot" style="background:#3d7fff"></div>认知盲区(0–5次)</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#4ade80"></div>低频(6–50次)</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#ffd23d"></div>中频(51–200次)</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#ff8a3d"></div>高频(201–500次)</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#ff4d4d"></div>过度暴露(500+次)</div>
+      </div>
+
+      <div class="push-detail" id="pushDetail">
+        <div class="why-label">▸ 点击上方任意盲区(蓝色斜纹格子),查看 AI 推荐</div>
+        <div class="push-title">等待你的探索...</div>
+        <div class="push-desc">
+          每个蓝色格子代表一个你过去30天几乎从未接触的认知维度。
+          茧房爆破器会从这些盲区中精选高质量内容,并告诉你「为什么是这条」。
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ TECH ============ -->
+<section id="tech">
+  <div class="container">
+    <div class="section-label reveal">ARCHITECTURE</div>
+    <h2 class="section-title reveal">技术架构:反向工程推荐系统</h2>
+    <p class="section-desc reveal">
+      沿用 Microsoft Recommenders 的成熟 pipeline,只改目标函数:
+      从「相似度最大化」反向工程为「盲区覆盖最大化」。
+    </p>
+
+    <div class="tech-grid">
+      <div class="tech-card reveal">
+        <div class="layer">移动端</div>
+        <div class="name">React Native (Expo)</div>
+        <div class="desc">热更新Demo,复用D3/deck.gl可视化生态</div>
+      </div>
+      <div class="tech-card reveal">
+        <div class="layer">Web可视化</div>
+        <div class="name">Next.js 15 + deck.gl</div>
+        <div class="desc">Uber开源,认知地图可视化首选方案</div>
+      </div>
+      <div class="tech-card reveal">
+        <div class="layer">后端</div>
+        <div class="name">Python FastAPI</div>
+        <div class="desc">复用Microsoft Recommenders / GraphRAG生态</div>
+      </div>
+      <div class="tech-card reveal">
+        <div class="layer">LLM编排</div>
+        <div class="name">LangChain + LangGraph</div>
+        <div class="desc">内容打标、解释生成、问题模板</div>
+      </div>
+      <div class="tech-card reveal">
+        <div class="layer">向量库</div>
+        <div class="name">Qdrant (BM25 + Vector)</div>
+        <div class="desc">2026开源顶流,混合检索保证内容质量</div>
+      </div>
+      <div class="tech-card reveal">
+        <div class="layer">内容理解</div>
+        <div class="name">Microsoft GraphRAG</div>
+        <div class="desc">detect→extract→build_graph→cluster→analyze</div>
+      </div>
+      <div class="tech-card reveal">
+        <div class="layer">关系DB</div>
+        <div class="name">Supabase (PostgreSQL)</div>
+        <div class="desc">Auth + RLS + Storage 全套省后端</div>
+      </div>
+      <div class="tech-card reveal">
+        <div class="layer">任务队列</div>
+        <div class="name">Celery + Redis</div>
+        <div class="desc">异步扫描pipeline,避免阻塞</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ VALUE ============ -->
+<section id="value">
+  <div class="container">
+    <div class="section-label reveal">WHY IT MATTERS</div>
+    <h2 class="section-title reveal">不只是产品,是一种产品范式</h2>
+
+    <div class="value-grid">
+      <div class="value-card reveal">
+        <div class="icon">🌍</div>
+        <h3>社会价值</h3>
+        <p>
+          信息茧房已是全民议题,两会、《光明日报》都在讨论。
+          目前所有解法都停留在「呼吁平台整改」(太慢)和「用户自律」(无效)两端。
+          茧房爆破器提供<strong>第三条路</strong>:用AI反向工程推荐算法,把「破茧」变成产品化、游戏化、可量化的日常行为。
+        </p>
+      </div>
+      <div class="value-card reveal">
+        <div class="icon">💰</div>
+        <h3>商业价值</h3>
+        <p>
+          「知识焦虑」已成显学,真正能帮用户「看到自己不知道什么」的产品极度稀缺。
+          勋章机制天然适合社交分享,带来裂变增长。
+          用户的认知地图数据本身是高价值画像,可延伸至教育、招聘、内容创作等场景。
+        </p>
+      </div>
+      <div class="value-card reveal">
+        <div class="icon">⚡</div>
+        <h3>AI原生性</h3>
+        <p>
+          内容理解(LLM打标签)+ 认知建模(多维向量空间)+
+          个性化推荐的反向工程 + 解释生成 + 反馈问题模板——
+          每一个环节都是纯AI能力驱动,是真正的AI原生产品,而非「AI加个壳」。
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ CTA ============ -->
+<section class="cta">
+  <div class="container">
+    <h2 class="reveal">
+      在字节办的比赛里<br>
+      做一个<span class="accent">反字节逻辑</span>的产品
+    </h2>
+    <p class="reveal">
+      这本身就是最好的叙事。
+    </p>
+    <div class="hero-cta reveal">
+      <a href="#demo" class="btn btn-primary">回到 Demo →</a>
+      <a href="#problem" class="btn btn-ghost">再读一遍故事</a>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="container">
+    茧房爆破器 · Anti-Recommendation Engine · 世界上第一个反推荐引擎
+  </div>
+</footer>
+
+<script>
+  // ============ 认知维度数据(24维) ============
+  const cognitiveData = [
+    { name: '娱乐八卦', count: 847, dim: 'entertainment' },
+    { name: '搞笑视频', count: 623, dim: 'humor' },
+    { name: '美妆穿搭', count: 412, dim: 'beauty' },
+    { name: '影视综艺', count: 358, dim: 'movie' },
+    { name: '美食', count: 287, dim: 'food' },
+    { name: '游戏电竞', count: 245, dim: 'gaming' },
+    { name: '科技数码', count: 189, dim: 'tech' },
+    { name: '汽车', count: 124, dim: 'auto' },
+    { name: '体育', count: 87, dim: 'sports' },
+    { name: '财经投资', count: 56, dim: 'finance' },
+    { name: '历史', count: 32, dim: 'history' },
+    { name: '心理学', count: 18, dim: 'psychology' },
+    { name: '艺术设计', count: 11, dim: 'art' },
+    { name: '文学', count: 7, dim: 'literature' },
+    { name: '社会学', count: 4, dim: 'sociology' },
+    { name: '哲学', count: 2, dim: 'philosophy' },
+    { name: '粒子物理', count: 0, dim: 'physics' },
+    { name: '天文学', count: 0, dim: 'astronomy' },
+    { name: '古典音乐', count: 1, dim: 'classical' },
+    { name: '生物学', count: 0, dim: 'biology' },
+    { name: '考古学', count: 0, dim: 'archaeology' },
+    { name: '语言学', count: 0, dim: 'linguistics' },
+    { name: '建筑学', count: 2, dim: 'architecture' },
+    { name: '数学', count: 0, dim: 'math' },
+  ];
+
+  // ============ 盲区推荐内容库 ============
+  const blindSpotContent = {
+    physics: {
+      title: '量子纠缠:爱因斯坦的「幽灵般的超距作用」',
+      why: '推荐这条是因为你过去30天从未接触过粒子物理学的内容',
+      desc: '两个粒子一旦发生纠缠,无论相距多远,对其中一个的测量会瞬间影响另一个。爱因斯坦称之为「幽灵般的超距作用」并以此质疑量子力学,但1964年贝尔不等式及后续实验证明——纠缠是真实的,宇宙的底层逻辑比我们想象的更诡异。',
+      source: '维基百科 · 量子纠缠'
+    },
+    astronomy: {
+      title: '费米悖论:宇宙这么大,外星人都在哪?',
+      why: '推荐这条是因为你在「天文学」维度完全空白',
+      desc: '银河系有上千亿颗恒星,可观测宇宙有上千亿个星系。哪怕只有极小比例出现文明,夜空也应当拥挤。但我们什么都没看到。这就是费米悖论。可能的答案从「他们灭绝了」到「我们孤独地存在着」——每一个都让人脊背发凉。',
+      source: '维基百科 · 费米悖论'
+    },
+    classical: {
+      title: '巴赫的《哥德堡变奏曲》:一首为失眠而作的杰作',
+      why: '推荐这条是因为你过去30天只接触过1次古典音乐',
+      desc: '1741年,巴赫为一位患有失眠症的伯爵写下这部作品。30个变奏,基于一段简单的低音线条,却构筑出西方音乐史上最精密的建筑结构。古尔德1981年的录音被认为是20世纪最重要的古典唱片之一——它证明了「严肃」与「动人」从不矛盾。',
+      source: '维基百科 · 哥德堡变奏曲'
+    },
+    biology: {
+      title: '线粒体:你细胞里的「外星来客」',
+      why: '推荐这条是因为你在「生物学」维度完全空白',
+      desc: '你细胞里负责产能的线粒体,有自己的DNA、自己的膜结构,甚至像细菌一样分裂繁殖。这不是巧合——20亿年前,一个古菌吞噬了一个细菌,二者共生,从此开启了真核生命的全部故事。你身上的每一个细胞,都是这段远古联姻的后代。',
+      source: '维基百科 · 内共生学说'
+    },
+    archaeology: {
+      title: '哥贝克力石阵:比金字塔早7000年的「第一座神庙」',
+      why: '推荐这条是因为你在「考古学」维度完全空白',
+      desc: '土耳其东南部,1994年发现了一座由T形巨石组成的圆形建筑群,建成于约公元前9600年——比吉萨金字塔早7000年,比农业起源还早。这意味着:人类可能是先聚在一起建神庙,然后才发明农业来养活这群人。宗教可能催生了文明,而不是反过来。',
+      source: '维基百科 · 哥贝克力石阵'
+    },
+    linguistics: {
+      title: '萨丕尔-沃尔夫假说:你说的语言,塑造了你的思维',
+      why: '推荐这条是因为你在「语言学」维度完全空白',
+      desc: '霍皮语没有「时间」这个名词,只有「持续的过程」;汉语区分「舅舅/叔叔/伯伯」,英语全是uncle。语言不只是表达思想的工具,它可能塑造思想本身。强版本假说已被证伪,但弱版本——语言影响认知习惯——持续被实验证实。你说话的方式,在悄悄改变你看世界的方式。',
+      source: '维基百科 · 语言相对论'
+    },
+    math: {
+      title: '哥德尔不完备定理:数学永远无法证明自己完美',
+      why: '推荐这条是因为你在「数学」维度完全空白',
+      desc: '1931年,25岁的库尔特·哥德尔证明:任何足够强大的形式系统中,必然存在「真但不可证」的命题。这意味着,数学无法证明自己既完备又一致。这个定理粉碎了希尔伯特「将一切数学形式化」的梦想,也间接催生了图灵机与计算机科学。你正在使用的电脑,根植于一个「不可能」的证明。',
+      source: '维基百科 · 哥德尔不完备定理'
+    },
+    philosophy: {
+      title: '忒修斯之船:如果零件全换了,它还是它吗?',
+      why: '推荐这条是因为你过去30天只接触过2次哲学内容',
+      desc: '一艘船,木板逐块被换新,直到所有零件都不再是原来的。它还是「忒修斯之船」吗?这个2000年前的思想实验,今天依然鲜活——它指向「同一性」的本质。你身体的细胞每7年全部更新一次,你还是那个「你」吗?',
+      source: '维基百科 · 忒修斯之船'
+    },
+    sociology: {
+      title: '弱联系的力量:你的好机会,大多来自「不熟的人」',
+      why: '推荐这条是因为你在「社会学」维度接触极少',
+      desc: '1973年,马克·格兰诺维特研究发现:人们找到工作的关键信息,56%来自「弱联系」(偶尔见面的人),而非亲密朋友。强联系给你情感支持,弱联系给你新信息——因为你的好朋友知道的你都知道。这解释了为什么「圈子」是陷阱,而跨界联系才是机会的源泉。',
+      source: '维基百科 · 弱联系理论'
+    },
+    literature: {
+      title: '博尔赫斯《巴别图书馆》:一座装下一切可能的图书馆',
+      why: '推荐这条是因为你在「文学」维度接触极少',
+      desc: '博尔赫斯设想了一座由六边形房间组成的无限图书馆,每间房存放410页的书,所有可能的字母组合都在其中。这意味着:你下一秒要说的话、要爱的人、要死的时刻,都已经被某本书完整写下。这是对信息过载与意义危机最优雅的隐喻——而它写在1941年。',
+      source: '博尔赫斯 · 《巴别图书馆》'
+    },
+    art: {
+      title: '马塞尔·杜尚的《泉》:把小便池搬进美术馆的人',
+      why: '推荐这条是因为你在「艺术」维度接触不多',
+      desc: '1917年,杜尚买了一个小便池,签名「R. Mutt」,送进展览。他声称:艺术家的工作不是制造美,而是选择。这件作品被票选为「20世纪最具影响力的艺术作品」——它把艺术的问题从「这是不是美」转向了「什么算艺术」。今天所有的NFT、装置、概念艺术,都是它的子嗣。',
+      source: '维基百科 · 泉 (杜尚)'
+    },
+    architecture: {
+      title: '勒·柯布西耶:房子是「居住的机器」',
+      why: '推荐这条是因为你过去30天只接触过2次建筑学内容',
+      desc: '1923年,柯布西耶写下这句话,引爆了20世纪建筑革命。他认为建筑应当像机器一样精密、高效、为生活服务,而非装饰性的外壳。你今天住的有电梯的公寓、看到的玻璃幕墙、走的有绿带的街道——大多源自他的设计原则。现代城市的模样,是一个人脑中的产物。',
+      source: '维基百科 · 勒·柯布西耶'
+    }
+  };
+
+  // ============ 渲染热力图 ============
+  function getColor(count) {
+    if (count === 0) return 'blind'; // 用斜纹
+    if (count < 6) return 'blind';
+    if (count < 51) return '#4ade80';
+    if (count < 201) return '#ffd23d';
+    if (count < 501) return '#ff8a3d';
+    return '#ff4d4d';
+  }
+
+  function renderHeatmap() {
+    const container = document.getElementById('heatmap');
+    container.innerHTML = '';
+    cognitiveData.forEach((item, idx) => {
+      const cell = document.createElement('div');
+      cell.className = 'cognitive-cell';
+      const color = getColor(item.count);
+      if (color === 'blind') {
+        cell.classList.add('blind');
+      } else {
+        cell.style.background = `linear-gradient(135deg, ${color}, ${color}cc)`;
+      }
+      cell.innerHTML = `
+        <div class="label">${item.name}</div>
+        <div class="count">${item.count === 0 ? '盲区' : item.count + ' 次'}</div>
+      `;
+      if (item.count < 6) {
+        cell.style.cursor = 'pointer';
+        cell.addEventListener('click', () => showPush(item));
+      } else {
+        cell.style.cursor = 'default';
+        cell.style.opacity = '0.85';
+      }
+      container.appendChild(cell);
+    });
+  }
+
+  // ============ 显示推送 ============
+  function showPush(item) {
+    const content = blindSpotContent[item.dim];
+    const detail = document.getElementById('pushDetail');
+    if (!content) {
+      detail.innerHTML = `
+        <div class="why-label">▸ ${item.name}</div>
+        <div class="push-title">该盲区内容库准备中</div>
+        <div class="push-desc">Demo中此维度暂未填充内容,完整版会覆盖全部24个认知维度。</div>
+      `;
+      return;
+    }
+    detail.style.borderColor = 'var(--red)';
+    detail.innerHTML = `
+      <div class="why-label">▸ ${content.why}</div>
+      <div class="push-title">${content.title}</div>
+      <div class="push-desc">${content.desc}</div>
+      <div class="push-action">
+        <button class="btn btn-primary" style="padding:8px 16px;font-size:13px" onclick="unlockBadge('${item.name}')">
+          📖 标记为已读
+        </button>
+        <span style="font-size:12px;color:var(--muted);align-self:center">${content.source}</span>
+      </div>
+    `;
+    detail.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+
+  // ============ 解锁勋章 ============
+  function unlockBadge(name) {
+    const detail = document.getElementById('pushDetail');
+    detail.innerHTML = `
+      <div style="text-align:center;padding:20px 0">
+        <div style="font-size:64px;margin-bottom:12px;animation:badgeFloat 2s ease-in-out infinite">🏅</div>
+        <div style="font-size:20px;font-weight:700;margin-bottom:8px">勋章解锁!</div>
+        <div style="color:var(--muted);font-size:14px">「${name}探索者」铜勋章 · 你已突破 1/24 个认知盲区</div>
+        <div style="margin-top:16px;padding:12px;background:rgba(255,77,77,0.1);border-radius:8px;font-size:13px;color:var(--red)">
+          完成反馈:这条内容刷新了你什么认知?(可选)
+        </div>
+      </div>
+    `;
+  }
+
+  // ============ 重新扫描动画 ============
+  function rescan() {
+    const wrapper = document.querySelector('.demo-wrapper');
+    wrapper.classList.add('scanning');
+    setTimeout(() => wrapper.classList.remove('scanning'), 1500);
+  }
+
+  // ============ Mini Heatmap (步骤1的装饰) ============
+  function renderMiniHeatmap() {
+    const container = document.getElementById('miniHeatmap');
+    if (!container) return;
+    const colors = ['#ff4d4d','#ff4d4d','#ff8a3d','#ffd23d','#4ade80','#3d7fff','#3d7fff','#3d7fff',
+                    '#ff4d4d','#ff8a3d','#ffd23d','#4ade80','#3d7fff','#3d7fff','#3d7fff','#4ade80',
+                    '#ff8a3d','#ffd23d','#4ade80','#3d7fff','#3d7fff','#3d7fff','#3d7fff','#4ade80'];
+    colors.forEach(c => {
+      const d = document.createElement('div');
+      d.style.background = c;
+      d.style.opacity = '0.8';
+      container.appendChild(d);
+    });
+  }
+
+  // ============ Reveal 动画 ============
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        entry.target.classList.add('visible');
+      }
+    });
+  }, { threshold: 0.1 });
+
+  // ============ 初始化 ============
+  document.addEventListener('DOMContentLoaded', () => {
+    renderHeatmap();
+    renderMiniHeatmap();
+    document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+  });
+</script>
+
+</body>
+</html>
