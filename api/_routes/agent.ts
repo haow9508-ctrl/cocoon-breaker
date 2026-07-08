@@ -1,57 +1,66 @@
-// ===== Agent API — 纯生成式，无知识库 =====
-// 无状态：所有数据存在前端 localStorage，每次请求带上 exposure
+// ===== Agent API v4.0 — 认知成长教练 7 阶段 Pipeline =====
+// 无状态：所有数据存在前端 localStorage，每次请求带上完整档案
 // 无知识库：所有内容由 DeepSeek 动态生成
 
 import { Router, Request, Response } from "express";
 import { analyzeExposure } from "../_agent/analyzer.js";
-import { generateDailyFeed, getContentDetailForUser } from "../_agent/recommender.js";
+import { generateDailyChallenge, getChallengeDetail, ImpactRecord, DecisionInput } from "../_agent/recommender.js";
 import { COGNITIVE_DIMENSIONS } from "../_knowledge/domains.js";
-import { chatWithAssistant, isApiKeyConfigured } from "../_agent/llm.js";
+import { diagnoseConversation, isApiKeyConfigured, coachFeedback } from "../_agent/llm.js";
+import { chatWithCoach, buildProfileFromExposure } from "../_agent/coach.js";
+import { adjustDifficulty, checkMilestones } from "../_agent/assessor.js";
 
 const router = Router();
 
-// 扫描：①感知 → ②分析 → 返回 exposure map
-router.post("/scan", async (req: Request, res: Response) => {
-  const { nickname, input } = req.body;
+// ① 诊断：多轮对话式扫描
+router.post("/diagnose", async (req: Request, res: Response) => {
+  const { nickname, messages } = req.body;
   try {
     if (!isApiKeyConfigured()) {
       res.status(500).json({ success: false, error: "DEEPSEEK_API_KEY not configured" });
       return;
     }
+    const reply = await diagnoseConversation(messages || [], nickname || "探索者");
+    res.json({ success: true, data: { reply } });
+  } catch (err: any) {
+    console.error("[Agent] diagnose error:", err.message);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
 
-    const exposure = input?.trim()
-      ? await analyzeExposure(input.trim())
-      : new Map(COGNITIVE_DIMENSIONS.map((d) => [d.id, d.count]));
-
+// ② 分析：生成24维暴露值 + 初始难度等级
+router.post("/analyze", async (req: Request, res: Response) => {
+  const { input } = req.body;
+  try {
+    if (!isApiKeyConfigured()) {
+      res.status(500).json({ success: false, error: "DEEPSEEK_API_KEY not configured" });
+      return;
+    }
+    const result = await analyzeExposure(input || "");
     const map = COGNITIVE_DIMENSIONS.map((d) => ({
       ...d,
-      userCount: exposure.get(d.id) ?? d.count,
-      isBlindSpot: (exposure.get(d.id) ?? d.count) < 6,
+      userCount: result.exposure.get(d.id) ?? d.count,
+      isBlindSpot: (result.exposure.get(d.id) ?? d.count) < 30,
     }));
-
-    const blindSpotCount = map.filter((d) => d.isBlindSpot).length;
-    const highExposureCount = map.filter((d) => d.userCount >= 501).length;
-
     res.json({
       success: true,
       data: {
-        userId: `user_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-        nickname: nickname || "探索者",
-        exposure: Object.fromEntries(exposure),
-        blindSpotCount,
-        highExposureCount,
+        exposure: Object.fromEntries(result.exposure),
+        highExposureFields: result.highExposureFields,
+        blindSpotFields: result.blindSpotFields,
+        difficultyLevel: result.initialDifficulty,
         map,
       },
     });
   } catch (err: any) {
-    console.error("[Agent] scan error:", err.message);
+    console.error("[Agent] analyze error:", err.message);
     res.status(500).json({ success: false, error: err.message });
   }
 });
 
-// 每日推送：③决策 → ④生成 → 返回 DeepSeek 动态生成的内容
-router.post("/daily", async (req: Request, res: Response) => {
-  const { exposure, readContentIds } = req.body;
+// ③④ 每日挑战：三维决策 + DeepSeek 生成
+router.post("/challenge", async (req: Request, res: Response) => {
+  const { exposure, readHistory, impactHistory, difficultyLevel, highExposureFields } = req.body;
   try {
     if (!isApiKeyConfigured()) {
       res.status(500).json({ success: false, error: "DEEPSEEK_API_KEY not configured" });
@@ -61,17 +70,26 @@ router.post("/daily", async (req: Request, res: Response) => {
     const expMap = new Map<string, number>(
       Object.entries(exposure || {}).map(([k, v]) => [k, Number(v) || 0])
     );
-    const result = await generateDailyFeed(expMap, readContentIds || [], 3);
+
+    const input: DecisionInput = {
+      exposure: expMap,
+      readHistory: readHistory || [],
+      impactHistory: (impactHistory || []) as ImpactRecord[],
+      difficultyLevel: difficultyLevel || "L1",
+      highExposureFields: highExposureFields || [],
+    };
+
+    const result = await generateDailyChallenge(input);
     res.json({ success: true, data: result });
   } catch (err: any) {
-    console.error("[Agent] daily error:", err.message);
+    console.error("[Agent] challenge error:", err.message);
     res.status(500).json({ success: false, error: err.message });
   }
 });
 
-// 内容详情：④生成 → 由 DeepSeek 为单个维度动态生成
-router.post("/content", async (req: Request, res: Response) => {
-  const { contentId, exposure } = req.body;
+// ⑤⑥ 自评 + 反哺：提交冲击自评，调整难度，检查里程碑
+router.post("/assess", async (req: Request, res: Response) => {
+  const { contentId, dimensionId, dimensionName, title, impactScore, reflection, exposure, profile } = req.body;
   try {
     if (!isApiKeyConfigured()) {
       res.status(500).json({ success: false, error: "DEEPSEEK_API_KEY not configured" });
@@ -81,14 +99,64 @@ router.post("/content", async (req: Request, res: Response) => {
     const expMap = new Map<string, number>(
       Object.entries(exposure || {}).map(([k, v]) => [k, Number(v) || 0])
     );
-    const result = await getContentDetailForUser(contentId, expMap);
-    if (!result) {
-      res.status(404).json({ success: false, error: "维度不存在" });
-      return;
-    }
-    res.json({ success: true, data: result });
+
+    // 更新暴露值：已读维度 +1
+    const currentCount = expMap.get(dimensionId) || 0;
+    expMap.set(dimensionId, currentCount + 1);
+
+    // 难度调整
+    const impactHistory = (profile?.impactHistory || []) as ImpactRecord[];
+    const newRecord: ImpactRecord = {
+      contentId,
+      dimensionId,
+      title,
+      impactScore,
+      reflection,
+      timestamp: new Date().toISOString(),
+    };
+    const updatedHistory = [...impactHistory, newRecord];
+
+    const assessment = adjustDifficulty(profile?.difficultyLevel || "L1", updatedHistory);
+
+    // 里程碑检查
+    const existingMilestoneIds = (profile?.milestones || []).map((m: any) =>
+      typeof m === "string" ? m : m.type
+    );
+    const newMilestones = checkMilestones(
+      updatedHistory,
+      profile?.readHistory || [],
+      expMap,
+      existingMilestoneIds
+    );
+
+    // 教练反馈
+    const coachProfile = buildProfileFromExposure(
+      expMap,
+      assessment.newDifficulty,
+      updatedHistory,
+      profile?.totalReads || 0
+    );
+    const feedback = await coachFeedback(
+      dimensionName,
+      title,
+      impactScore,
+      reflection,
+      coachProfile
+    );
+
+    res.json({
+      success: true,
+      data: {
+        newExposure: Object.fromEntries(expMap),
+        newDifficulty: assessment.newDifficulty,
+        difficultyChanged: assessment.difficultyChanged,
+        newMilestones,
+        coachFeedback: feedback,
+        updatedImpactHistory: updatedHistory,
+      },
+    });
   } catch (err: any) {
-    console.error("[Agent] content error:", err.message);
+    console.error("[Agent] assess error:", err.message);
     res.status(500).json({ success: false, error: err.message });
   }
 });
@@ -107,9 +175,111 @@ router.post("/map", (req: Request, res: Response) => {
   res.json({ success: true, data: map });
 });
 
-// 智能聊天：⑤交互 → DeepSeek 多轮对话
-router.post("/chat", async (req: Request, res: Response) => {
-  const { message, history, exposure } = req.body;
+// 成长曲线数据：基于历史记录计算
+router.post("/growth", (req: Request, res: Response) => {
+  const { profile } = req.body;
+  const impactHistory = profile?.impactHistory || [];
+  const milestones = profile?.milestones || [];
+
+  // 按时间分组统计
+  const weeklyData: Array<{ week: string; reads: number; avgImpact: number; dimensions: string[] }> = [];
+  const dimSet = new Set<string>();
+
+  // 简化：按 impactHistory 顺序分组
+  const sortedHistory = [...impactHistory].sort((a: any, b: any) =>
+    new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+  );
+
+  let currentWeek = "";
+  let weekReads: any[] = [];
+
+  sortedHistory.forEach((record: any) => {
+    const date = new Date(record.timestamp);
+    const weekKey = `${date.getFullYear()}-W${Math.ceil((date.getDate() + date.getDay()) / 7)}`;
+
+    if (currentWeek !== weekKey) {
+      if (weekReads.length > 0) {
+        weeklyData.push({
+          week: currentWeek,
+          reads: weekReads.length,
+          avgImpact: weekReads.reduce((s, r) => s + r.impactScore, 0) / weekReads.length,
+          dimensions: Array.from(dimSet),
+        });
+      }
+      currentWeek = weekKey;
+      weekReads = [];
+      dimSet.clear();
+    }
+    weekReads.push(record);
+    dimSet.add(record.dimensionId);
+  });
+
+  // 最后一周
+  if (weekReads.length > 0) {
+    weeklyData.push({
+      week: currentWeek,
+      reads: weekReads.length,
+      avgImpact: weekReads.reduce((s, r) => s + r.impactScore, 0) / weekReads.length,
+      dimensions: Array.from(dimSet),
+    });
+  }
+
+  const totalReads = impactHistory.length;
+  const totalDimensions = new Set(impactHistory.map((r: any) => r.dimensionId)).size;
+  const avgImpact = totalReads > 0
+    ? impactHistory.reduce((s: number, r: any) => s + r.impactScore, 0) / totalReads
+    : 0;
+
+  res.json({
+    success: true,
+    data: {
+      weeklyData,
+      milestones,
+      stats: {
+        totalReads,
+        totalDimensions,
+        avgImpact: Number(avgImpact.toFixed(2)),
+        difficultyLevel: profile?.difficultyLevel || "L1",
+      },
+    },
+  });
+});
+
+// ⑦ 教练对话：方法论引导
+router.post("/coach", async (req: Request, res: Response) => {
+  const { message, history, profile } = req.body;
+  try {
+    if (!isApiKeyConfigured()) {
+      res.status(500).json({ success: false, error: "DEEPSEEK_API_KEY not configured" });
+      return;
+    }
+
+    const expMap = new Map<string, number>(
+      Object.entries(profile?.exposure || {}).map(([k, v]) => [k, Number(v) || 0])
+    );
+
+    const coachProfile = buildProfileFromExposure(
+      expMap,
+      profile?.difficultyLevel || "L1",
+      profile?.impactHistory || [],
+      profile?.totalReads || 0
+    );
+
+    const reply = await chatWithCoach(
+      message || "",
+      history || [],
+      coachProfile
+    );
+    res.json({ success: true, data: { reply } });
+  } catch (err: any) {
+    console.error("[Agent] coach error:", err.message);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// 兼容旧路由：内容详情
+router.post("/content", async (req: Request, res: Response) => {
+  const { contentId, exposure, difficultyLevel } = req.body;
   try {
     if (!isApiKeyConfigured()) {
       res.status(500).json({ success: false, error: "DEEPSEEK_API_KEY not configured" });
@@ -119,14 +289,14 @@ router.post("/chat", async (req: Request, res: Response) => {
     const expMap = new Map<string, number>(
       Object.entries(exposure || {}).map(([k, v]) => [k, Number(v) || 0])
     );
-    const reply = await chatWithAssistant(
-      message || "",
-      history || [],
-      expMap
-    );
-    res.json({ success: true, data: { reply } });
+    const result = await getChallengeDetail(contentId, expMap, difficultyLevel || "L1");
+    if (!result) {
+      res.status(404).json({ success: false, error: "维度不存在" });
+      return;
+    }
+    res.json({ success: true, data: result });
   } catch (err: any) {
-    console.error("[Agent] chat error:", err.message);
+    console.error("[Agent] content error:", err.message);
     res.status(500).json({ success: false, error: err.message });
   }
 });

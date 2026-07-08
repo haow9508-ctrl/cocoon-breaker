@@ -1,125 +1,192 @@
+// ===== 认知热力图页 =====
+// 24 维度方块网格（6×4）+ 图例 + 统计
+
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Button } from "@/components/ui/button";
-import { ArrowLeft, Eye, EyeOff } from "lucide-react";
-import { getCognitiveMap, hasScanned } from "../lib/apiClient";
+import { Loader2 } from "lucide-react";
+import { getCognitiveMap } from "../lib/apiClient";
 import { cn } from "@/lib/utils";
 
-function getColor(count: number): string {
-  if (count < 30) return "blind";
-  if (count < 100) return "#4ade80";
-  if (count < 300) return "#ffd23d";
-  if (count < 600) return "#ff8a3d";
-  return "#ff4d4d";
+interface MapItem {
+  id: string;
+  name: string;
+  count: number;
+  category: string;
+  userCount: number;
+  isBlindSpot: boolean;
 }
 
+// 根据 userCount 返回背景色与标签
+function getColor(userCount: number): { bg: string; border: string; label: string } {
+  if (userCount === 0) return { bg: "bg-white/[0.03]", border: "border-white/[0.06]", label: "0" };
+  if (userCount < 30) return { bg: "bg-blue-950", border: "border-blue-800/40", label: "<30" };
+  if (userCount < 100) return { bg: "bg-blue-600", border: "border-blue-400/40", label: "<100" };
+  if (userCount < 300) return { bg: "bg-yellow-500", border: "border-yellow-300/40", label: "<300" };
+  if (userCount < 600) return { bg: "bg-orange-500", border: "border-orange-300/40", label: "<600" };
+  return { bg: "bg-red-500", border: "border-red-300/40", label: "≥600" };
+}
+
+const LEGEND = [
+  { color: "bg-white/[0.06]", label: "0" },
+  { color: "bg-blue-950 border border-blue-800/40", label: "<30" },
+  { color: "bg-blue-600", label: "<100" },
+  { color: "bg-yellow-500", label: "<300" },
+  { color: "bg-orange-500", label: "<600" },
+  { color: "bg-red-500", label: "≥600" },
+];
+
 export function HeatmapPage() {
-  const navigate = useNavigate();
-  const [map, setMap] = useState<any[]>([]);
+  const [map, setMap] = useState<MapItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showBlindOnly, setShowBlindOnly] = useState(false);
+  const [error, setError] = useState("");
+  const [hovered, setHovered] = useState<MapItem | null>(null);
 
   useEffect(() => {
-    if (!hasScanned()) { navigate("/scan"); return; }
-    loadMap();
+    let alive = true;
+    (async () => {
+      setLoading(true);
+      setError("");
+      try {
+        const res = await getCognitiveMap();
+        if (alive) setMap(res);
+      } catch (e: any) {
+        if (alive) setError(e.message || "加载认知地图失败");
+      } finally {
+        if (alive) setLoading(false);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
   }, []);
 
-  const loadMap = async () => {
-    try {
-      const data = await getCognitiveMap();
-      setMap(data);
-    } finally {
-      setLoading(false);
-    }
-  };
+  if (loading) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center pt-16 text-white/40">
+        <Loader2 className="h-6 w-6 animate-spin" />
+        <p className="mt-3 text-sm">正在绘制你的认知地图…</p>
+      </div>
+    );
+  }
 
-  if (loading) return <div className="min-h-screen bg-background flex items-center justify-center text-muted-foreground text-sm">加载中...</div>;
+  if (error) {
+    return (
+      <div className="mx-auto max-w-3xl px-5 pt-32">
+        <div className="rounded-xl border border-red-500/20 bg-red-500/10 p-5 text-sm text-red-300">{error}</div>
+      </div>
+    );
+  }
 
-  const blindCount = map.filter((d) => d.isBlindSpot).length;
-  const overCount = map.filter((d) => d.userCount >= 501).length;
-  const filtered = showBlindOnly ? map.filter((d) => d.isBlindSpot) : map;
+  // 统计
+  const highFreq = map.filter((d) => d.userCount >= 300).length;
+  const lowFreq = map.filter((d) => d.userCount > 0 && d.userCount < 100).length;
+  const blindSpot = map.filter((d) => d.isBlindSpot).length;
 
   return (
-    <div className="min-h-screen bg-background relative">
-      <nav className="sticky top-0 z-30 glass border-b border-border/50">
-        <div className="container max-w-4xl h-14 flex items-center justify-between">
-          <button onClick={() => navigate("/")} className="flex items-center gap-2 text-muted-foreground hover:text-foreground">
-            <ArrowLeft className="w-4 h-4" /><span className="text-sm">返回</span>
-          </button>
-          <span className="font-semibold text-sm">认知茧房热力图</span>
-          <Button variant="ghost" size="sm" onClick={() => setShowBlindOnly(!showBlindOnly)} className="text-xs">
-            {showBlindOnly ? <Eye className="w-3.5 h-3.5 mr-1" /> : <EyeOff className="w-3.5 h-3.5 mr-1" />}
-            {showBlindOnly ? "显示全部" : "只看盲区"}
-          </Button>
+    <div className="mx-auto max-w-5xl px-5 pb-24 pt-24 sm:px-8">
+      {/* 页头 */}
+      <motion.header initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
+        <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-white/40">
+          <span className="h-1 w-6 bg-white/30" />
+          认知热力图
         </div>
-      </nav>
+        <h1 className="font-serif-cn mt-3 text-3xl font-semibold tracking-wide sm:text-4xl">
+          24 个维度的暴露全景
+        </h1>
+        <p className="mt-3 max-w-xl text-sm leading-relaxed text-white/45">
+          颜色越暖，暴露越深；颜色越冷，越是盲区。
+        </p>
+      </motion.header>
 
-      <main className="container max-w-4xl py-8">
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold mb-2">你的认知暴露地图</h1>
-          <p className="text-sm text-muted-foreground mb-4">
-            红色 = 过度暴露 · 蓝色斜纹 = 认知盲区（点击可探索）
-          </p>
-          <div className="grid grid-cols-3 gap-3">
-            <div className="p-3 rounded-xl bg-card border border-border/50">
-              <div className="text-xs text-muted-foreground">盲区</div>
-              <div className="text-xl font-bold text-blue-400">{blindCount}</div>
+      {/* 图例 */}
+      <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.1 }}
+        className="mb-6 flex flex-wrap items-center gap-4 rounded-xl border border-white/[0.08] bg-white/[0.02] px-4 py-3"
+      >
+        <span className="text-[11px] uppercase tracking-wider text-white/35">暴露强度</span>
+        <div className="flex items-center gap-3">
+          {LEGEND.map((l) => (
+            <div key={l.label} className="flex items-center gap-1.5">
+              <span className={cn("h-3 w-3 rounded-sm", l.color)} />
+              <span className="text-[11px] text-white/45">{l.label}</span>
             </div>
-            <div className="p-3 rounded-xl bg-card border border-border/50">
-              <div className="text-xs text-muted-foreground">过度暴露</div>
-              <div className="text-xl font-bold text-red-400">{overCount}</div>
-            </div>
-            <div className="p-3 rounded-xl bg-card border border-border/50">
-              <div className="text-xs text-muted-foreground">总维度</div>
-              <div className="text-xl font-bold">{map.length}</div>
-            </div>
-          </div>
+          ))}
         </div>
+      </motion.div>
 
-        {/* 图例 */}
-        <div className="flex flex-wrap gap-3 text-xs text-muted-foreground mb-4">
-          <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm" style={{ background: "repeating-linear-gradient(45deg,#3d7fff33,#3d7fff33 3px,#3d7fff66 3px,#3d7fff66 6px)" }} />盲区(0-5)</span>
-          <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-emerald-400/70" />低频(6-50)</span>
-          <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-yellow-400/70" />中频(51-200)</span>
-          <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-orange-400/70" />高频(201-500)</span>
-          <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-red-400/70" />过度(500+)</span>
-        </div>
-
-        {/* 热力图 */}
-        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3">
-          {filtered.map((d, idx) => {
-            const color = getColor(d.userCount);
-            const isBlind = color === "blind";
+      {/* 热力图网格 */}
+      <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.2 }}
+        className="rounded-2xl border border-white/[0.08] bg-white/[0.02] p-5 sm:p-6"
+      >
+        <div className="grid grid-cols-4 gap-2 sm:grid-cols-6 sm:gap-2.5">
+          {map.map((d, i) => {
+            const c = getColor(d.userCount);
             return (
-              <motion.button
+              <motion.div
                 key={d.id}
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
-                transition={{ delay: idx * 0.02 }}
-                onClick={() => isBlind && navigate(`/read/${d.id}`)}
+                transition={{ delay: i * 0.015 }}
+                onMouseEnter={() => setHovered(d)}
+                onMouseLeave={() => setHovered(null)}
                 className={cn(
-                  "aspect-square rounded-xl border relative flex flex-col items-center justify-center p-2 transition-all",
-                  isBlind ? "cursor-pointer hover:scale-105" : "cursor-default",
+                  "group relative aspect-square cursor-default rounded-lg border transition-all duration-200 hover:scale-105 hover:ring-2 hover:ring-white/20",
+                  c.bg,
+                  c.border
                 )}
-                style={{
-                  background: isBlind
-                    ? "repeating-linear-gradient(45deg, rgba(61,127,255,0.1), rgba(61,127,255,0.1) 4px, rgba(61,127,255,0.2) 4px, rgba(61,127,255,0.2) 8px)"
-                    : `linear-gradient(135deg, ${color}33, ${color}11)`,
-                  borderColor: isBlind ? "rgba(61,127,255,0.3)" : `${color}33`,
-                }}
               >
-                <span className="text-xs font-medium text-center" style={{ color: isBlind ? "#3d7fff" : undefined }}>
-                  {d.name}
-                </span>
-                <span className="text-[10px] text-muted-foreground mt-0.5">
-                  {d.userCount === 0 ? "盲区" : `${d.userCount}次`}
-                </span>
-              </motion.button>
+                {/* 悬浮提示 */}
+                <div className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-2 hidden -translate-x-1/2 whitespace-nowrap rounded-md border border-white/10 bg-[#0a0a0f] px-2.5 py-1.5 text-[11px] shadow-xl group-hover:block">
+                  <div className="font-medium text-white/90">{d.name}</div>
+                  <div className="text-white/45">暴露值 {d.userCount}</div>
+                </div>
+                {/* 序号（极淡） */}
+                <span className="absolute left-1 top-0.5 text-[9px] text-white/15">{i + 1}</span>
+              </motion.div>
             );
           })}
         </div>
-      </main>
+
+        {/* 悬停信息（移动端/底部） */}
+        <div className="mt-4 flex h-6 items-center text-[12px] text-white/45">
+          {hovered ? (
+            <span>
+              <span className="text-white/80">{hovered.name}</span>
+              <span className="mx-2 text-white/20">·</span>
+              暴露值 <span className="text-white/70">{hovered.userCount}</span>
+              {hovered.isBlindSpot && <span className="ml-2 text-blue-300">盲区</span>}
+            </span>
+          ) : (
+            <span className="text-white/25">悬停方块查看维度详情</span>
+          )}
+        </div>
+      </motion.div>
+
+      {/* 底部统计 */}
+      <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.3 }}
+        className="mt-6 grid grid-cols-3 gap-3"
+      >
+        <StatBox label="高频领域" value={highFreq} accent="text-red-300" />
+        <StatBox label="低频领域" value={lowFreq} accent="text-blue-300" />
+        <StatBox label="认知盲区" value={blindSpot} accent="text-white/80" />
+      </motion.div>
+    </div>
+  );
+}
+
+function StatBox({ label, value, accent }: { label: string; value: number; accent: string }) {
+  return (
+    <div className="rounded-xl border border-white/[0.08] bg-white/[0.02] p-4 text-center">
+      <div className={cn("font-serif-cn text-2xl font-semibold", accent)}>{value}</div>
+      <div className="mt-1 text-[11px] uppercase tracking-wider text-white/35">{label}</div>
     </div>
   );
 }

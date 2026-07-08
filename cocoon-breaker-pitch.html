@@ -1,0 +1,731 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>茧房爆破器 — 反推荐认知成长教练 | TRAE Work 创意报名</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;700;900&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --bg-elevated: #12121a;
+    --fg: #f5f5f7;
+    --fg-muted: #8a8a95;
+    --fg-dim: #4a4a55;
+    --accent: #ff4d4d;
+    --accent-dim: #ff4d4d22;
+    --info: #00d4ff;
+    --info-dim: #00d4ff22;
+    --border: #1f1f2a;
+    --border-bright: #2f2f3a;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    background: var(--bg);
+    color: var(--fg);
+    font-family: 'Inter', 'Noto Serif SC', -apple-system, BlinkMacSystemFont, sans-serif;
+    font-feature-settings: 'ss01', 'cv01';
+    -webkit-font-smoothing: antialiased;
+    line-height: 1.6;
+    overflow-x: hidden;
+  }
+  .serif { font-family: 'Noto Serif SC', serif; }
+  .mono { font-family: 'JetBrains Mono', monospace; }
+
+  /* 极细分割线 */
+  .hairline { height: 1px; background: linear-gradient(90deg, transparent, var(--border-bright) 20%, var(--border-bright) 80%, transparent); }
+
+  /* 噪点背景 */
+  .noise::before {
+    content: ''; position: absolute; inset: 0; pointer-events: none;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.4'/%3E%3C/svg%3E");
+    opacity: 0.025; mix-blend-mode: overlay;
+  }
+
+  /* Hero 光晕 */
+  .glow-red {
+    position: absolute; width: 600px; height: 600px; border-radius: 50%;
+    background: radial-gradient(circle, rgba(255,77,77,0.15) 0%, transparent 70%);
+    filter: blur(60px); pointer-events: none;
+  }
+  .glow-blue {
+    position: absolute; width: 500px; height: 500px; border-radius: 50%;
+    background: radial-gradient(circle, rgba(0,212,255,0.12) 0%, transparent 70%);
+    filter: blur(60px); pointer-events: none;
+  }
+
+  /* 入场动画 */
+  .reveal { opacity: 0; transform: translateY(24px); transition: opacity 1s cubic-bezier(0.22, 1, 0.36, 1), transform 1s cubic-bezier(0.22, 1, 0.36, 1); }
+  .reveal.in { opacity: 1; transform: translateY(0); }
+
+  /* 数字滚动 */
+  .stat-num { font-variant-numeric: tabular-nums; font-feature-settings: 'tnum'; }
+
+  /* 维度方块 */
+  .dim-cell {
+    transition: all 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+    border: 1px solid var(--border);
+  }
+  .dim-cell:hover { border-color: var(--accent); transform: scale(1.05); z-index: 10; }
+  .dim-cell.high { background: rgba(255,77,77,0.08); border-color: rgba(255,77,77,0.3); }
+  .dim-cell.low { background: rgba(0,212,255,0.04); border-color: rgba(0,212,255,0.2); }
+  .dim-cell.blind { background: transparent; border-color: var(--border); }
+  .dim-cell.blind.active { background: var(--accent); border-color: var(--accent); box-shadow: 0 0 24px rgba(255,77,77,0.5); }
+
+  /* 难度等级 */
+  .lvl-pill { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 4px; font-size: 11px; font-weight: 500; letter-spacing: 0.05em; }
+  .lvl-1 { background: rgba(74,222,128,0.1); color: #4ade80; border: 1px solid rgba(74,222,128,0.3); }
+  .lvl-2 { background: rgba(255,210,61,0.1); color: #ffd23d; border: 1px solid rgba(255,210,61,0.3); }
+  .lvl-3 { background: rgba(255,77,77,0.1); color: #ff4d4d; border: 1px solid rgba(255,77,77,0.3); }
+
+  /* 滚动条 */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: var(--bg); }
+  ::-webkit-scrollbar-thumb { background: var(--border-bright); border-radius: 3px; }
+
+  /* 文字渐变 */
+  .text-grad {
+    background: linear-gradient(135deg, #f5f5f7 0%, #8a8a95 100%);
+    -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+  }
+  .text-accent-grad {
+    background: linear-gradient(135deg, #ff4d4d 0%, #ff8a3d 100%);
+    -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+  }
+
+  /* 卡片悬停 */
+  .card-hover { transition: all 0.5s cubic-bezier(0.22, 1, 0.36, 1); }
+  .card-hover:hover { border-color: var(--border-bright); transform: translateY(-2px); }
+
+  /* 流程线 */
+  .pipeline-line {
+    position: absolute; left: 24px; top: 0; bottom: 0; width: 1px;
+    background: linear-gradient(180deg, transparent 0%, var(--border-bright) 10%, var(--border-bright) 90%, transparent 100%);
+  }
+
+  /* 标签 */
+  .tag {
+    display: inline-flex; align-items: center; padding: 3px 8px;
+    font-size: 10px; font-weight: 500; letter-spacing: 0.08em;
+    text-transform: uppercase; border-radius: 3px;
+    background: var(--bg-elevated); border: 1px solid var(--border-bright); color: var(--fg-muted);
+  }
+
+  /* 引用块 */
+  .quote-block {
+    border-left: 2px solid var(--accent);
+    padding-left: 20px;
+    font-family: 'Noto Serif SC', serif;
+    font-style: italic;
+  }
+</style>
+</head>
+<body class="relative">
+
+<!-- ============ HERO ============ -->
+<section class="relative min-h-screen flex flex-col justify-between overflow-hidden noise">
+  <div class="glow-red" style="top: -200px; right: -100px;"></div>
+  <div class="glow-blue" style="bottom: -150px; left: -100px;"></div>
+
+  <!-- 顶部信息条 -->
+  <div class="relative z-10 max-w-7xl mx-auto w-full px-8 pt-8 flex items-center justify-between text-xs mono text-[var(--fg-muted)]">
+    <div class="flex items-center gap-6">
+      <span class="text-[var(--fg)] font-medium">TRAE Work · 创意报名</span>
+      <span class="hidden md:inline">/ 2026</span>
+    </div>
+    <div class="flex items-center gap-3">
+      <span class="tag">学习工作赛道</span>
+      <span class="text-[var(--fg-dim)]">No. 042</span>
+    </div>
+  </div>
+
+  <!-- 主标题区 -->
+  <div class="relative z-10 max-w-7xl mx-auto w-full px-8 py-20">
+    <div class="reveal">
+      <div class="flex items-center gap-3 mb-8 text-xs mono text-[var(--fg-muted)]">
+        <span class="w-8 h-px bg-[var(--accent)]"></span>
+        <span>COCCOON BREAKER · 反推荐引擎</span>
+      </div>
+
+      <h1 class="serif font-black leading-[0.95] tracking-tight mb-8" style="font-size: clamp(3rem, 8vw, 7rem);">
+        茧房<span class="text-accent-grad">爆破器</span>
+      </h1>
+
+      <p class="serif text-2xl md:text-3xl text-[var(--fg-muted)] leading-snug max-w-3xl mb-12" style="font-weight: 400;">
+        当所有 App 都在帮你<span class="text-[var(--fg)]">看更多你喜欢的</span>，<br>
+        我们帮你<span class="text-[var(--accent)]">系统性地接触你从未见过的</span>。
+      </p>
+
+      <div class="flex flex-wrap gap-4 items-center">
+        <div class="px-5 py-2.5 border border-[var(--border-bright)] rounded-full text-sm flex items-center gap-2">
+          <span class="w-1.5 h-1.5 rounded-full bg-[var(--accent)] animate-pulse"></span>
+          <span>DeepSeek 驱动 · 认知成长教练</span>
+        </div>
+        <div class="text-sm text-[var(--fg-muted)] mono">v4.0 · 纯生成式 Agent</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 底部滚动提示 -->
+  <div class="relative z-10 max-w-7xl mx-auto w-full px-8 pb-8 flex items-end justify-between">
+    <div class="text-xs mono text-[var(--fg-dim)] leading-relaxed max-w-md">
+      <div class="mb-2 text-[var(--fg-muted)]">— 创意陈述</div>
+      一个由 DeepSeek Transformer 驱动的反推荐系统。<br>
+      不预测点击率，预测认知冲击度。
+    </div>
+    <div class="flex flex-col items-center gap-2 text-[var(--fg-dim)]">
+      <div class="text-[10px] mono tracking-widest">SCROLL</div>
+      <div class="w-px h-12 bg-gradient-to-b from-[var(--fg-dim)] to-transparent"></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 01 · 痛点 ============ -->
+<section class="relative py-32 px-8">
+  <div class="max-w-6xl mx-auto">
+    <div class="reveal mb-20">
+      <div class="flex items-baseline gap-6 mb-6">
+        <span class="mono text-xs text-[var(--fg-dim)]">01 / 痛点</span>
+        <div class="hairline flex-1"></div>
+      </div>
+      <h2 class="serif text-5xl md:text-6xl font-bold leading-tight max-w-4xl">
+        推荐算法的尽头，<br>是认知的<span class="text-[var(--accent)]">窄化</span>。
+      </h2>
+    </div>
+
+    <div class="grid md:grid-cols-3 gap-px bg-[var(--border)] border border-[var(--border)] rounded-lg overflow-hidden">
+      <div class="reveal bg-[var(--bg)] p-10 card-hover">
+        <div class="mono text-xs text-[var(--accent)] mb-6">现象 01</div>
+        <div class="stat-num serif text-6xl font-bold mb-3">87%</div>
+        <p class="text-[var(--fg-muted)] text-sm leading-relaxed">
+          的用户在主流内容平台上，过去 30 天接触的领域不超过 5 个。算法在最大化停留时长的同时，也在系统性地收窄视野。
+        </p>
+      </div>
+      <div class="reveal bg-[var(--bg)] p-10 card-hover">
+        <div class="mono text-xs text-[var(--accent)] mb-6">现象 02</div>
+        <div class="stat-num serif text-6xl font-bold mb-3">×8.4</div>
+        <p class="text-[var(--fg-muted)] text-sm leading-relaxed">
+          热门领域与冷门领域的内容曝光比。娱乐八卦的曝光量是天文学的 8.4 倍，而哲学、考古、语言学几乎不存在于信息流中。
+        </p>
+      </div>
+      <div class="reveal bg-[var(--bg)] p-10 card-hover">
+        <div class="mono text-xs text-[var(--accent)] mb-6">现象 03</div>
+        <div class="stat-num serif text-6xl font-bold mb-3">0</div>
+        <p class="text-[var(--fg-muted)] text-sm leading-relaxed">
+          个主流产品以"扩展认知边界"为优化目标。所有推荐引擎都在追求"投其所好"，没有一个在追求"补其所缺"。
+        </p>
+      </div>
+    </div>
+
+    <div class="reveal mt-16 max-w-3xl">
+      <div class="quote-block text-xl leading-relaxed text-[var(--fg-muted)]">
+        当算法比你更懂你的偏好，它就在替你决定你将成为什么样的人。<br>
+        <span class="text-[var(--fg)] not-italic mono text-sm block mt-4">— 茧房爆破器 · 设计宣言</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 02 · 产品形态 ============ -->
+<section class="relative py-32 px-8 bg-[var(--bg-elevated)] noise">
+  <div class="max-w-6xl mx-auto relative">
+    <div class="reveal mb-20">
+      <div class="flex items-baseline gap-6 mb-6">
+        <span class="mono text-xs text-[var(--fg-dim)]">02 / 产品</span>
+        <div class="hairline flex-1"></div>
+      </div>
+      <h2 class="serif text-5xl md:text-6xl font-bold leading-tight max-w-4xl mb-8">
+        不是推荐引擎，<br>是<span class="text-[var(--info)]">认知成长教练</span>。
+      </h2>
+      <p class="text-xl text-[var(--fg-muted)] max-w-3xl leading-relaxed">
+        一个 Web 应用。DeepSeek 作为长期陪伴用户的认知成长教练，通过诊断式扫描建立认知档案，每日生成"刚好够颠覆"的认知挑战，并通过成长可视化让用户看见自己的边界在被拓宽。
+      </p>
+    </div>
+
+    <!-- 24 维度可视化 -->
+    <div class="reveal mb-16">
+      <div class="flex items-center justify-between mb-6">
+        <div class="text-xs mono text-[var(--fg-muted)]">COGNITIVE MAP · 24 维度认知档案</div>
+        <div class="flex items-center gap-4 text-[10px] mono">
+          <span class="flex items-center gap-1.5"><span class="w-2 h-2 bg-[rgba(255,77,77,0.3)]"></span>高频</span>
+          <span class="flex items-center gap-1.5"><span class="w-2 h-2 bg-[rgba(0,212,255,0.2)]"></span>低频</span>
+          <span class="flex items-center gap-1.5"><span class="w-2 h-2 border border-[var(--border-bright)]"></span>盲区</span>
+        </div>
+      </div>
+      <div class="grid grid-cols-6 md:grid-cols-8 gap-1.5">
+        <!-- 24 个维度方块，JS 生成 -->
+        <div id="dim-grid" class="contents"></div>
+      </div>
+    </div>
+
+    <!-- 三大核心能力 -->
+    <div class="grid md:grid-cols-3 gap-6">
+      <div class="reveal p-8 border border-[var(--border)] rounded-lg card-hover bg-[var(--bg)]">
+        <div class="flex items-center gap-3 mb-6">
+          <span class="mono text-xs text-[var(--fg-dim)]">01</span>
+          <div class="h-px flex-1 bg-[var(--border)]"></div>
+        </div>
+        <h3 class="serif text-2xl font-bold mb-3">诊断式扫描</h3>
+        <p class="text-sm text-[var(--fg-muted)] leading-relaxed mb-4">
+          不是一次性表单，是 3-5 轮的教练对话。DeepSeek 像一位见多识广的朋友，通过追问还原你真实的内容消费习惯。
+        </p>
+        <div class="text-xs mono text-[var(--fg-dim)]">→ 生成 24 维认知暴露档案</div>
+      </div>
+
+      <div class="reveal p-8 border border-[var(--border)] rounded-lg card-hover bg-[var(--bg)]">
+        <div class="flex items-center gap-3 mb-6">
+          <span class="mono text-xs text-[var(--fg-dim)]">02</span>
+          <div class="h-px flex-1 bg-[var(--border)]"></div>
+        </div>
+        <h3 class="serif text-2xl font-bold mb-3">三维决策引擎</h3>
+        <p class="text-sm text-[var(--fg-muted)] leading-relaxed mb-4">
+          不是盲区排序。每个维度按<span class="text-[var(--fg)]">盲区度 × 冲击度 × 可接受度</span>三维评分，预测哪条内容能产生最大认知颠覆。
+        </p>
+        <div class="flex gap-2 mt-4">
+          <span class="lvl-pill lvl-1">L1 相邻</span>
+          <span class="lvl-pill lvl-2">L2 中距</span>
+          <span class="lvl-pill lvl-3">L3 远端</span>
+        </div>
+      </div>
+
+      <div class="reveal p-8 border border-[var(--border)] rounded-lg card-hover bg-[var(--bg)]">
+        <div class="flex items-center gap-3 mb-6">
+          <span class="mono text-xs text-[var(--fg-dim)]">03</span>
+          <div class="h-px flex-1 bg-[var(--border)]"></div>
+        </div>
+        <h3 class="serif text-2xl font-bold mb-3">成长可视化</h3>
+        <p class="text-sm text-[var(--fg-muted)] leading-relaxed mb-4">
+          时间轴 + 里程碑墙 + 认知轨迹雷达图。让用户<span class="text-[var(--fg)]">看见</span>自己的边界在被拓宽，用一次和用一个月体验完全不同。
+        </p>
+        <div class="text-xs mono text-[var(--fg-dim)]">→ 数据资产持续积累</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 03 · 工作机制 ============ -->
+<section class="relative py-32 px-8">
+  <div class="max-w-5xl mx-auto">
+    <div class="reveal mb-20">
+      <div class="flex items-baseline gap-6 mb-6">
+        <span class="mono text-xs text-[var(--fg-dim)]">03 / 机制</span>
+        <div class="hairline flex-1"></div>
+      </div>
+      <h2 class="serif text-5xl md:text-6xl font-bold leading-tight max-w-4xl">
+        七阶段<br><span class="text-grad">Agent Pipeline</span>
+      </h2>
+      <p class="text-lg text-[var(--fg-muted)] mt-6 max-w-2xl">
+        从诊断到对话，DeepSeek 在每个阶段都扮演认知成长教练，使用苏格拉底式追问、类比桥接、反事实推演等方法论。
+      </p>
+    </div>
+
+    <div class="relative pl-16">
+      <div class="pipeline-line"></div>
+
+      <!-- 阶段列表 -->
+      <div class="space-y-2" id="pipeline-list"></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 04 · 护城河 ============ -->
+<section class="relative py-32 px-8 bg-[var(--bg-elevated)] noise">
+  <div class="max-w-6xl mx-auto">
+    <div class="reveal mb-20">
+      <div class="flex items-baseline gap-6 mb-6">
+        <span class="mono text-xs text-[var(--fg-dim)]">04 / 护城河</span>
+        <div class="hairline flex-1"></div>
+      </div>
+      <h2 class="serif text-5xl md:text-6xl font-bold leading-tight max-w-4xl">
+        为什么<span class="text-[var(--accent)]">不易被替代</span>。
+      </h2>
+    </div>
+
+    <div class="space-y-px bg-[var(--border)] border border-[var(--border)] rounded-lg overflow-hidden">
+      <div class="reveal bg-[var(--bg)] p-10 grid md:grid-cols-12 gap-8 card-hover">
+        <div class="md:col-span-3">
+          <div class="mono text-xs text-[var(--fg-dim)] mb-2">LAYER 01 · 最底层</div>
+          <h3 class="serif text-2xl font-bold">认知数据资产</h3>
+        </div>
+        <div class="md:col-span-9">
+          <p class="text-[var(--fg-muted)] leading-relaxed mb-4">
+            用户的认知档案随使用持续积累——初始暴露值、冲击历史、成长曲线、里程碑、认知指纹。用得越久，档案越完整，迁移成本越高。
+          </p>
+          <div class="flex flex-wrap gap-2">
+            <span class="tag">暴露历史</span>
+            <span class="tag">冲击自评</span>
+            <span class="tag">成长曲线</span>
+            <span class="tag">认知指纹</span>
+            <span class="tag">里程碑</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="reveal bg-[var(--bg)] p-10 grid md:grid-cols-12 gap-8 card-hover">
+        <div class="md:col-span-3">
+          <div class="mono text-xs text-[var(--fg-dim)] mb-2">LAYER 02 · 算法层</div>
+          <h3 class="serif text-2xl font-bold">反推荐算法</h3>
+        </div>
+        <div class="md:col-span-9">
+          <p class="text-[var(--fg-muted)] leading-relaxed mb-4">
+            三维决策引擎 + 难度递进 + 关联爆破。不是 <code class="mono text-[var(--accent)]">sort()</code>，是认知冲击度预测——基于用户高频领域与盲区的"认知距离"综合评分。
+          </p>
+          <div class="mono text-xs text-[var(--fg-dim)] bg-[var(--bg-elevated)] p-4 rounded border border-[var(--border)]">
+            推荐得分 = f(盲区度, 冲击度, 可接受度)
+          </div>
+        </div>
+      </div>
+
+      <div class="reveal bg-[var(--bg)] p-10 grid md:grid-cols-12 gap-8 card-hover">
+        <div class="md:col-span-3">
+          <div class="mono text-xs text-[var(--fg-dim)] mb-2">LAYER 03 · 体验层</div>
+          <h3 class="serif text-2xl font-bold">交互深度</h3>
+        </div>
+        <div class="md:col-span-9">
+          <p class="text-[var(--fg-muted)] leading-relaxed mb-4">
+            诊断式扫描 + 每日挑战仪式 + 冲击自评闭环 + 成长可视化。用一次和用一个月体验完全不同，深度交互产生黏性。
+          </p>
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+            <div class="text-[var(--fg-muted)]"><span class="text-[var(--fg)]">3-5轮</span> 诊断对话</div>
+            <div class="text-[var(--fg-muted)]"><span class="text-[var(--fg)]">1-5星</span> 冲击自评</div>
+            <div class="text-[var(--fg-muted)]"><span class="text-[var(--fg)]">L1→L3</span> 难度递进</div>
+            <div class="text-[var(--fg-muted)]"><span class="text-[var(--fg)]">周/月</span> 成长回顾</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="reveal bg-[var(--bg)] p-10 grid md:grid-cols-12 gap-8 card-hover">
+        <div class="md:col-span-3">
+          <div class="mono text-xs text-[var(--fg-dim)] mb-2">LAYER 04 · 品牌层</div>
+          <h3 class="serif text-2xl font-bold">教练角色</h3>
+        </div>
+        <div class="md:col-span-9">
+          <p class="text-[var(--fg-muted)] leading-relaxed mb-4">
+            DeepSeek 不是通用助手，是<span class="text-[var(--fg)]">有方法论的专家</span>。苏格拉底式追问、类比桥接、反事实推演、长期记忆——四套方法论构成品牌差异化。
+          </p>
+          <div class="grid grid-cols-2 gap-3 text-xs">
+            <div class="text-[var(--fg-muted)]"><span class="text-[var(--accent)] mono">→</span> 苏格拉底式追问</div>
+            <div class="text-[var(--fg-muted)]"><span class="text-[var(--accent)] mono">→</span> 类比桥接</div>
+            <div class="text-[var(--fg-muted)]"><span class="text-[var(--accent)] mono">→</span> 反事实推演</div>
+            <div class="text-[var(--fg-muted)]"><span class="text-[var(--accent)] mono">→</span> 长期记忆</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 05 · 目标用户 ============ -->
+<section class="relative py-32 px-8">
+  <div class="max-w-6xl mx-auto">
+    <div class="reveal mb-20">
+      <div class="flex items-baseline gap-6 mb-6">
+        <span class="mono text-xs text-[var(--fg-dim)]">05 / 用户</span>
+        <div class="hairline flex-1"></div>
+      </div>
+      <h2 class="serif text-5xl md:text-6xl font-bold leading-tight max-w-4xl">
+        给<span class="text-[var(--info)]">不愿被算法定义</span>的人。
+      </h2>
+    </div>
+
+    <div class="grid md:grid-cols-3 gap-6">
+      <div class="reveal p-8 bg-[var(--bg-elevated)] border border-[var(--border)] rounded-lg card-hover">
+        <div class="w-10 h-10 rounded-full bg-[var(--accent-dim)] flex items-center justify-center mb-6">
+          <span class="text-[var(--accent)] mono text-sm font-bold">A</span>
+        </div>
+        <h3 class="serif text-xl font-bold mb-2">信息焦虑的职场人</h3>
+        <p class="text-sm text-[var(--fg-muted)] leading-relaxed">
+          25-35 岁，每天刷 2 小时短视频，知道自己在浪费时间，但不知道"有意义的内容"长什么样。想改变，却被算法困住。
+        </p>
+      </div>
+
+      <div class="reveal p-8 bg-[var(--bg-elevated)] border border-[var(--border)] rounded-lg card-hover">
+        <div class="w-10 h-10 rounded-full bg-[var(--info-dim)] flex items-center justify-center mb-6">
+          <span class="text-[var(--info)] mono text-sm font-bold">B</span>
+        </div>
+        <h3 class="serif text-xl font-bold mb-2">终身学习者</h3>
+        <p class="text-sm text-[var(--fg-muted)] leading-relaxed">
+          主动学习者，但困于"已知未知"——知道自己该学新东西，却不知道自己"不知道什么"。需要系统性的盲区发现。
+        </p>
+      </div>
+
+      <div class="reveal p-8 bg-[var(--bg-elevated)] border border-[var(--border)] rounded-lg card-hover">
+        <div class="w-10 h-10 rounded-full bg-[rgba(74,222,128,0.1)] flex items-center justify-center mb-6">
+          <span class="text-[#4ade80] mono text-sm font-bold">C</span>
+        </div>
+        <h3 class="serif text-xl font-bold mb-2">创意工作者</h3>
+        <p class="text-sm text-[var(--fg-muted)] leading-relaxed">
+          设计师、写作者、产品经理。需要跨界灵感，但信息流只推同质化内容。渴望"认知冲击"而非"信息投喂"。
+        </p>
+      </div>
+    </div>
+
+    <div class="reveal mt-16 grid md:grid-cols-2 gap-12 items-center">
+      <div>
+        <div class="mono text-xs text-[var(--fg-dim)] mb-3">使用场景</div>
+        <h3 class="serif text-3xl font-bold mb-6 leading-tight">
+          每天清晨，<br>5 分钟的<span class="text-[var(--accent)]">认知爆破</span>。
+        </h3>
+        <p class="text-[var(--fg-muted)] leading-relaxed">
+          用户在通勤、午休、睡前的碎片时间打开应用。不是无意识地刷，是有目的地接受一次"刚好够颠覆"的认知挑战——读完、自评、反思、看见成长。
+        </p>
+      </div>
+      <div class="bg-[var(--bg-elevated)] border border-[var(--border)] rounded-lg p-8">
+        <div class="mono text-xs text-[var(--fg-dim)] mb-4">DAILY RITUAL · 每日仪式</div>
+        <div class="space-y-3 text-sm">
+          <div class="flex items-center gap-3 text-[var(--fg-muted)]"><span class="mono text-[var(--accent)] w-8">07:00</span><span>开启今日挑战</span></div>
+          <div class="flex items-center gap-3 text-[var(--fg-muted)]"><span class="mono text-[var(--accent)] w-8">07:03</span><span>阅读 L2 难度内容（5分钟）</span></div>
+          <div class="flex items-center gap-3 text-[var(--fg-muted)]"><span class="mono text-[var(--accent)] w-8">07:08</span><span>冲击自评 + 一句话反思</span></div>
+          <div class="flex items-center gap-3 text-[var(--fg-muted)]"><span class="mono text-[var(--accent)] w-8">07:10</span><span>查看成长曲线变化</span></div>
+          <div class="flex items-center gap-3 text-[var(--fg)]"><span class="mono text-[var(--accent)] w-8">07:12</span><span>完成 · 算法反哺明日推荐</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 06 · 价值与意义 ============ -->
+<section class="relative py-32 px-8 bg-[var(--bg-elevated)] noise">
+  <div class="max-w-5xl mx-auto">
+    <div class="reveal mb-20">
+      <div class="flex items-baseline gap-6 mb-6">
+        <span class="mono text-xs text-[var(--fg-dim)]">06 / 价值</span>
+        <div class="hairline flex-1"></div>
+      </div>
+      <h2 class="serif text-5xl md:text-6xl font-bold leading-tight max-w-4xl">
+        不仅是产品，<br>是<span class="text-[var(--accent)]">认知平权</span>的实践。
+      </h2>
+    </div>
+
+    <div class="grid md:grid-cols-2 gap-px bg-[var(--border)] border border-[var(--border)] rounded-lg overflow-hidden mb-16">
+      <div class="reveal bg-[var(--bg)] p-10">
+        <div class="mono text-xs text-[var(--accent)] mb-4">社会价值</div>
+        <h3 class="serif text-2xl font-bold mb-4">对抗算法导致的信息不平等</h3>
+        <p class="text-[var(--fg-muted)] leading-relaxed">
+          推荐算法正在制造新的不平等：信息富者愈富，穷者愈穷。茧房爆破器让每个用户都有机会系统性地接触那些被算法过滤掉的领域——从娱乐八卦到粒子物理，从搞笑视频到哥德尔定理。这是认知层面的"普惠金融"。
+        </p>
+      </div>
+      <div class="reveal bg-[var(--bg)] p-10">
+        <div class="mono text-xs text-[var(--info)] mb-4">商业价值</div>
+        <h3 class="serif text-2xl font-bold mb-4">高留存 + 难替代的数据资产</h3>
+        <p class="text-[var(--fg-muted)] leading-relaxed">
+          认知档案是天然的护城河——用户用 3 个月建立的成长曲线、冲击历史、里程碑，无法迁移到任何竞品。这种数据资产属性带来高留存率，且随时间增强。商业模式可延伸至付费深度诊断、企业版认知培训、教育机构合作。
+        </p>
+      </div>
+    </div>
+
+    <div class="reveal">
+      <div class="quote-block text-2xl leading-relaxed text-[var(--fg)] serif">
+        我们不在优化点击率，<br>
+        我们在优化<span class="text-[var(--accent)]">认知颠覆的概率</span>。<br>
+        <span class="text-[var(--fg-muted)] text-base not-italic mono block mt-6">— 这就是反推荐引擎的意义</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 07 · 技术实现 ============ -->
+<section class="relative py-32 px-8">
+  <div class="max-w-6xl mx-auto">
+    <div class="reveal mb-20">
+      <div class="flex items-baseline gap-6 mb-6">
+        <span class="mono text-xs text-[var(--fg-dim)]">07 / 技术</span>
+        <div class="hairline flex-1"></div>
+      </div>
+      <h2 class="serif text-5xl md:text-6xl font-bold leading-tight max-w-4xl">
+        纯生成式 Agent，<br><span class="text-grad">无知识库，无 RAG</span>。
+      </h2>
+      <p class="text-lg text-[var(--fg-muted)] mt-6 max-w-3xl">
+        所有内容由 DeepSeek Transformer 动态生成。不存在预设内容库，不存在检索增强。每个用户每次看到的挑战都是独一无二的。
+      </p>
+    </div>
+
+    <div class="grid md:grid-cols-2 gap-8 mb-16">
+      <div class="reveal">
+        <div class="mono text-xs text-[var(--fg-dim)] mb-4">FRONTEND · 前端</div>
+        <div class="bg-[var(--bg-elevated)] border border-[var(--border)] rounded-lg p-8">
+          <div class="space-y-3 text-sm">
+            <div class="flex justify-between"><span class="text-[var(--fg-muted)]">框架</span><span class="mono">React 18 + TypeScript</span></div>
+            <div class="flex justify-between"><span class="text-[var(--fg-muted)]">构建</span><span class="mono">Vite 5</span></div>
+            <div class="flex justify-between"><span class="text-[var(--fg-muted)]">样式</span><span class="mono">Tailwind CSS</span></div>
+            <div class="flex justify-between"><span class="text-[var(--fg-muted)]">动画</span><span class="mono">Framer Motion</span></div>
+            <div class="flex justify-between"><span class="text-[var(--fg-muted)]">状态</span><span class="mono">Zustand + localStorage</span></div>
+            <div class="flex justify-between"><span class="text-[var(--fg-muted)]">页面</span><span class="mono">6 页 + 成长可视化</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="reveal">
+        <div class="mono text-xs text-[var(--fg-dim)] mb-4">BACKEND · 后端</div>
+        <div class="bg-[var(--bg-elevated)] border border-[var(--border)] rounded-lg p-8">
+          <div class="space-y-3 text-sm">
+            <div class="flex justify-between"><span class="text-[var(--fg-muted)]">框架</span><span class="mono">Express + TypeScript</span></div>
+            <div class="flex justify-between"><span class="text-[var(--fg-muted)]">部署</span><span class="mono">Vercel Serverless</span></div>
+            <div class="flex justify-between"><span class="text-[var(--fg-muted)]">AI</span><span class="mono">DeepSeek API (deepseek-chat)</span></div>
+            <div class="flex justify-between"><span class="text-[var(--fg-muted)]">Pipeline</span><span class="mono">7 阶段 Agent</span></div>
+            <div class="flex justify-between"><span class="text-[var(--fg-muted)]">决策引擎</span><span class="mono">三维评分 + 难度递进</span></div>
+            <div class="flex justify-between"><span class="text-[var(--fg-muted)]">API 端点</span><span class="mono">7 个 RESTful</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 架构示意 -->
+    <div class="reveal">
+      <div class="mono text-xs text-[var(--fg-dim)] mb-6">ARCHITECTURE · 系统架构</div>
+      <div class="bg-[var(--bg-elevated)] border border-[var(--border)] rounded-lg p-8 overflow-x-auto">
+        <pre class="mono text-xs leading-relaxed text-[var(--fg-muted)]">
+┌──────────────────────────── 前端 ────────────────────────────┐
+│  DiagScan → Challenge → Reader → Growth → Milestones → Coach │
+│                    │                                         │
+│            apiClient + profileManager                        │
+│           (localStorage: 档案/历史/里程碑)                    │
+└────────────────────────┬─────────────────────────────────────┘
+                         │ HTTP
+┌────────────────────────┴─────────────────────────────────────┐
+│                    后端 Agent Controller                      │
+│                                                              │
+│  ①诊断 → ②分析 → ③决策 → ④生成 → ⑤自评 → ⑥反哺 → ⑦对话    │
+│                  │                                           │
+│         ┌────────┴────────┐                                  │
+│         │  三维决策引擎    │ ← 难度递进 + 关联爆破            │
+│         └─────────────────┘                                  │
+│                          │                                   │
+│                DeepSeek API (认知成长教练)                    │
+└──────────────────────────────────────────────────────────────┘
+        </pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ FOOTER ============ -->
+<footer class="relative py-20 px-8 border-t border-[var(--border)]">
+  <div class="max-w-6xl mx-auto">
+    <div class="reveal flex flex-col md:flex-row items-start md:items-end justify-between gap-8 mb-12">
+      <div>
+        <div class="serif text-4xl font-bold mb-3">茧房爆破器</div>
+        <p class="text-[var(--fg-muted)] text-sm max-w-md leading-relaxed">
+          反推荐认知成长教练 · DeepSeek 驱动 · TRAE Work 创意报名
+        </p>
+      </div>
+      <div class="flex flex-wrap gap-2">
+        <span class="tag">学习工作赛道</span>
+        <span class="tag">DeepSeek</span>
+        <span class="tag">React</span>
+        <span class="tag">Vercel</span>
+        <span class="tag">v4.0</span>
+      </div>
+    </div>
+    <div class="hairline mb-8"></div>
+    <div class="flex items-center justify-between text-xs mono text-[var(--fg-dim)]">
+      <div>© 2026 COCCOON BREAKER · 反推荐引擎</div>
+      <div>Built with TRAE Work</div>
+    </div>
+  </div>
+</footer>
+
+<script>
+  // === 24 维度数据 ===
+  const dimensions = [
+    { id: 'entertainment', name: '娱乐八卦', count: 847, category: 'high' },
+    { id: 'humor', name: '搞笑视频', count: 623, category: 'high' },
+    { id: 'beauty', name: '美妆穿搭', count: 412, category: 'high' },
+    { id: 'movie', name: '影视综艺', count: 358, category: 'high' },
+    { id: 'food', name: '美食', count: 287, category: 'high' },
+    { id: 'gaming', name: '游戏电竞', count: 245, category: 'high' },
+    { id: 'tech', name: '科技数码', count: 189, category: 'high' },
+    { id: 'auto', name: '汽车', count: 124, category: 'high' },
+    { id: 'sports', name: '体育', count: 87, category: 'high' },
+    { id: 'finance', name: '财经投资', count: 56, category: 'low' },
+    { id: 'history', name: '历史', count: 32, category: 'low' },
+    { id: 'psychology', name: '心理学', count: 18, category: 'low' },
+    { id: 'art', name: '艺术设计', count: 11, category: 'low' },
+    { id: 'literature', name: '文学', count: 7, category: 'low' },
+    { id: 'sociology', name: '社会学', count: 4, category: 'low' },
+    { id: 'philosophy', name: '哲学', count: 2, category: 'low' },
+    { id: 'physics', name: '粒子物理', count: 0, category: 'blind' },
+    { id: 'astronomy', name: '天文学', count: 0, category: 'blind' },
+    { id: 'classical', name: '古典音乐', count: 1, category: 'blind' },
+    { id: 'biology', name: '生物学', count: 0, category: 'blind' },
+    { id: 'archaeology', name: '考古学', count: 0, category: 'blind' },
+    { id: 'linguistics', name: '语言学', count: 0, category: 'blind' },
+    { id: 'architecture', name: '建筑学', count: 2, category: 'blind' },
+    { id: 'math', name: '数学', count: 0, category: 'blind' },
+  ];
+
+  const grid = document.getElementById('dim-grid');
+  dimensions.forEach((d, i) => {
+    const cell = document.createElement('div');
+    cell.className = `dim-cell ${d.category} aspect-square rounded flex flex-col items-center justify-center p-2 cursor-pointer reveal`;
+    cell.style.transitionDelay = `${i * 30}ms`;
+    cell.innerHTML = `
+      <div class="text-[9px] mono text-[var(--fg-dim)] mb-1">${String(i+1).padStart(2,'0')}</div>
+      <div class="text-[10px] text-center leading-tight ${d.category === 'blind' ? 'text-[var(--fg-muted)]' : 'text-[var(--fg)]'}">${d.name}</div>
+      ${d.count > 0 ? `<div class="text-[9px] mono mt-1 ${d.category === 'high' ? 'text-[var(--accent)]' : 'text-[var(--info)]'}">${d.count}</div>` : '<div class="text-[9px] mono mt-1 text-[var(--fg-dim)]">—</div>'}
+    `;
+    grid.appendChild(cell);
+  });
+
+  // === 七阶段 Pipeline ===
+  const pipeline = [
+    { num: '01', name: '诊断', en: 'Diagnosis', desc: '3-5 轮教练对话，建立初始认知档案', actor: 'DeepSeek 教练', color: 'var(--accent)' },
+    { num: '02', name: '分析', en: 'Analysis', desc: '生成 24 维认知暴露值 + 高频/盲区领域', actor: 'DeepSeek 分析器', color: 'var(--info)' },
+    { num: '03', name: '决策', en: 'Decision', desc: '三维决策引擎评分，按难度等级过滤', actor: '纯算法', color: 'var(--fg)' },
+    { num: '04', name: '生成', en: 'Generation', desc: '动态生成挑战内容 + 类比桥接引导语', actor: 'DeepSeek 生成器', color: 'var(--accent)' },
+    { num: '05', name: '自评', en: 'Self-Assess', desc: '用户阅读后冲击自评 1-5 星 + 反思', actor: '用户', color: 'var(--info)' },
+    { num: '06', name: '反哺', en: 'Feedback', desc: '更新档案 + 难度调整 + 里程碑检查', actor: 'DeepSeek + 算法', color: 'var(--accent)' },
+    { num: '07', name: '对话', en: 'Coach', desc: '苏格拉底追问 / 类比桥接 / 反事实推演', actor: 'DeepSeek 教练', color: 'var(--info)' },
+  ];
+
+  const pipeList = document.getElementById('pipeline-list');
+  pipeline.forEach((p, i) => {
+    const item = document.createElement('div');
+    item.className = 'reveal relative flex items-start gap-6 py-6 group';
+    item.style.transitionDelay = `${i * 80}ms`;
+    item.innerHTML = `
+      <div class="absolute -left-16 w-10 h-10 rounded-full bg-[var(--bg)] border border-[var(--border-bright)] flex items-center justify-center">
+        <span class="mono text-xs" style="color: ${p.color}">${p.num}</span>
+      </div>
+      <div class="flex-1 grid md:grid-cols-12 gap-4 items-baseline">
+        <div class="md:col-span-3">
+          <div class="serif text-2xl font-bold">${p.name}</div>
+          <div class="mono text-xs text-[var(--fg-dim)] mt-1">${p.en}</div>
+        </div>
+        <div class="md:col-span-6">
+          <p class="text-[var(--fg-muted)] text-sm leading-relaxed">${p.desc}</p>
+        </div>
+        <div class="md:col-span-3 text-right">
+          <span class="text-xs mono text-[var(--fg-dim)]">${p.actor}</span>
+        </div>
+      </div>
+    `;
+    pipeList.appendChild(item);
+  });
+
+  // === 滚动入场动画 ===
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        entry.target.classList.add('in');
+      }
+    });
+  }, { threshold: 0.1, rootMargin: '0px 0px -50px 0px' });
+
+  document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+
+  // === 盲区方块周期性高亮 ===
+  const blindCells = document.querySelectorAll('.dim-cell.blind');
+  let activeIdx = 0;
+  setInterval(() => {
+    blindCells.forEach(c => c.classList.remove('active'));
+    if (blindCells[activeIdx]) {
+      blindCells[activeIdx].classList.add('active');
+      activeIdx = (activeIdx + 1) % blindCells.length;
+    }
+  }, 1500);
+</script>
+
+</body>
+</html>
