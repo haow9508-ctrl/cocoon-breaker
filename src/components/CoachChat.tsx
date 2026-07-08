@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 interface Msg {
   role: "user" | "assistant";
   content: string;
+  method?: string; // 教练方法论标签（仅 assistant）
 }
 
 const QUICK_PROMPTS = [
@@ -17,6 +18,15 @@ const QUICK_PROMPTS = [
   "我最大的盲区是？",
   "怎么突破当前难度？",
 ];
+
+// PRD 承诺：教练方法论结构化输出
+const METHOD_LABELS: Record<string, { text: string; className: string }> = {
+  socratic: { text: "苏格拉底式", className: "border-sky-400/30 bg-sky-400/10 text-sky-300" },
+  analogy: { text: "类比桥接", className: "border-violet-400/30 bg-violet-400/10 text-violet-300" },
+  counterfactual: { text: "反事实推演", className: "border-amber-400/30 bg-amber-400/10 text-amber-300" },
+  memory: { text: "记忆调用", className: "border-emerald-400/30 bg-emerald-400/10 text-emerald-300" },
+  general: { text: "教练", className: "border-white/15 bg-white/5 text-white/50" },
+};
 
 export function CoachChat() {
   const [isOpen, setIsOpen] = useState(false);
@@ -54,7 +64,7 @@ export function CoachChat() {
         content,
         nextMessages.map((m) => ({ role: m.role, content: m.content }))
       );
-      setMessages((prev) => [...prev, { role: "assistant", content: reply }]);
+      setMessages((prev) => [...prev, { role: "assistant", content: reply.content, method: reply.method }]);
     } catch (e: any) {
       setMessages((prev) => [
         ...prev,
@@ -158,6 +168,11 @@ export function CoachChat() {
                         : "rounded-bl-sm border border-white/[0.08] bg-white/[0.03] text-white/85"
                     )}
                   >
+                    {msg.role === "assistant" && msg.method && msg.method !== "general" && (
+                      <span className={cn("mb-1.5 inline-block rounded-full border px-2 py-0.5 text-[10px] font-medium", METHOD_LABELS[msg.method]?.className || METHOD_LABELS.general.className)}>
+                        {METHOD_LABELS[msg.method]?.text || "教练"}
+                      </span>
+                    )}
                     {msg.content}
                   </div>
                 </motion.div>

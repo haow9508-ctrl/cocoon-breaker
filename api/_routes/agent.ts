@@ -6,7 +6,7 @@ import { Router, Request, Response } from "express";
 import { analyzeExposure } from "../_agent/analyzer.js";
 import { generateDailyChallenge, getChallengeDetail, ImpactRecord, DecisionInput } from "../_agent/recommender.js";
 import { COGNITIVE_DIMENSIONS } from "../_knowledge/domains.js";
-import { diagnoseConversation, isApiKeyConfigured, coachFeedback } from "../_agent/llm.js";
+import { diagnoseConversation, isApiKeyConfigured, coachFeedback, buildCoachContext, extractKeyInsight } from "../_agent/llm.js";
 import { chatWithCoach, buildProfileFromExposure } from "../_agent/coach.js";
 import { adjustDifficulty, checkMilestones } from "../_agent/assessor.js";
 
@@ -144,6 +144,19 @@ router.post("/assess", async (req: Request, res: Response) => {
       coachProfile
     );
 
+    // 提取关键洞察存入教练记忆（PRD 承诺：coachMemory.keyInsights）
+    let keyInsight: string | null = null;
+    try {
+      const context = buildCoachContext(coachProfile);
+      keyInsight = await extractKeyInsight(
+        `我读了《${title}》（${dimensionName}），冲击自评：${impactScore}星，反思：${reflection || "无"}`,
+        feedback,
+        context
+      );
+    } catch (e: any) {
+      console.error("[Agent] extractKeyInsight failed:", e.message);
+    }
+
     res.json({
       success: true,
       data: {
@@ -152,6 +165,7 @@ router.post("/assess", async (req: Request, res: Response) => {
         difficultyChanged: assessment.difficultyChanged,
         newMilestones,
         coachFeedback: feedback,
+        keyInsight,
         updatedImpactHistory: updatedHistory,
       },
     });
@@ -265,12 +279,22 @@ router.post("/coach", async (req: Request, res: Response) => {
       profile?.totalReads || 0
     );
 
-    const reply = await chatWithCoach(
+    const { method, content } = await chatWithCoach(
       message || "",
       history || [],
       coachProfile
     );
-    res.json({ success: true, data: { reply } });
+
+    // 提取关键洞察存入教练记忆（PRD 承诺：coachMemory.keyInsights）
+    let keyInsight: string | null = null;
+    try {
+      const context = buildCoachContext(coachProfile);
+      keyInsight = await extractKeyInsight(message || "", content, context);
+    } catch (e: any) {
+      console.error("[Agent] extractKeyInsight failed:", e.message);
+    }
+
+    res.json({ success: true, data: { method, content, keyInsight } });
   } catch (err: any) {
     console.error("[Agent] coach error:", err.message);
     res.status(500).json({ success: false, error: err.message });

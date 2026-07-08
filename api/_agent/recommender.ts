@@ -1,8 +1,9 @@
-// ===== ③ 决策层 v4.0 — 三维决策引擎 =====
-// 不是 sort()，是盲区度 × 冲击度 × 可接受度的综合预测
+// ===== ③ 决策层 v4.1 — 真正的三维决策引擎 =====
+// 冲击度由 DeepSeek 评估（不再用硬编码矩阵）
+// 保留硬编码矩阵作为 fallback（API 失败时降级）
 
 import { COGNITIVE_DIMENSIONS, getDimensionById } from "../_knowledge/domains.js";
-import { generateChallenge, ChallengeContent } from "./llm.js";
+import { generateChallenge, ChallengeContent, evaluateCognitiveDistances } from "./llm.js";
 import type { DifficultyLevel } from "./analyzer.js";
 
 export interface ImpactRecord {
@@ -26,7 +27,7 @@ interface ScoredDimension {
   dimensionId: string;
   dimensionName: string;
   blindSpotScore: number;     // 盲区度 0-1
-  impactScore: number;        // 冲击度 0-1
+  impactScore: number;        // 冲击度 0-1（DeepSeek 评估）
   acceptabilityScore: number; // 可接受度 0-1
   totalScore: number;
 }
@@ -51,7 +52,7 @@ export interface ChallengeResult {
   selectedDimensions: string[];
 }
 
-// 维度类别映射（用于认知距离计算）
+// 维度类别映射（仅用于可接受度计算的 fallback）
 const DIMENSION_CATEGORY: Record<string, "entertainment" | "life" | "knowledge" | "science" | "humanities"> = {
   entertainment: "entertainment", humor: "entertainment", beauty: "life", movie: "entertainment",
   food: "life", gaming: "entertainment", tech: "knowledge", auto: "life",
@@ -61,8 +62,8 @@ const DIMENSION_CATEGORY: Record<string, "entertainment" | "life" | "knowledge" 
   archaeology: "humanities", linguistics: "humanities", architecture: "humanities", math: "science",
 };
 
-// 认知距离矩阵（类别间的距离 0-1）
-const CATEGORY_DISTANCE: Record<string, Record<string, number>> = {
+// Fallback 距离矩阵（DeepSeek 不可用时降级）
+const FALLBACK_DISTANCE: Record<string, Record<string, number>> = {
   entertainment: { entertainment: 0.1, life: 0.3, knowledge: 0.6, humanities: 0.8, science: 1.0 },
   life: { entertainment: 0.3, life: 0.1, knowledge: 0.4, humanities: 0.6, science: 0.8 },
   knowledge: { entertainment: 0.6, life: 0.4, knowledge: 0.1, humanities: 0.4, science: 0.5 },
@@ -70,55 +71,67 @@ const CATEGORY_DISTANCE: Record<string, Record<string, number>> = {
   science: { entertainment: 1.0, life: 0.8, knowledge: 0.5, humanities: 0.5, science: 0.1 },
 };
 
-/** ③ 决策：三维决策引擎，选择 Top 3 盲区维度 */
-export function decideBlindSpots(input: DecisionInput): Array<{ id: string; name: string; exposureCount: number }> {
+/**
+ * ③ 决策：三维决策引擎，选择 Top 3 盲区维度
+ * v4.1：冲击度由 DeepSeek 评估，不再用硬编码矩阵
+ */
+export async function decideBlindSpots(
+  input: DecisionInput
+): Promise<Array<{ id: string; name: string; exposureCount: number }>> {
   const maxExposure = Math.max(...Array.from(input.exposure.values()), 100);
 
-  // 计算用户高频领域的平均类别
-  const highExposureCategories = input.highExposureFields
-    .map((name) => {
-      const dim = COGNITIVE_DIMENSIONS.find((d) => d.name === name);
-      return dim ? DIMENSION_CATEGORY[dim.id] : null;
-    })
-    .filter(Boolean) as string[];
+  // 候选维度：排除已读
+  const candidates = COGNITIVE_DIMENSIONS.filter((d) => !input.readHistory.includes(d.id));
 
-  const scored: ScoredDimension[] = COGNITIVE_DIMENSIONS
-    .filter((d) => !input.readHistory.includes(d.id)) // 排除已读
-    .map((dim) => {
-      const exposureCount = input.exposure.get(dim.id) ?? dim.count;
+  // 用 DeepSeek 批量评估认知距离（冲击度）
+  const distanceMap = await evaluateCognitiveDistances(
+    candidates.map((d) => ({ id: d.id, name: d.name })),
+    input.highExposureFields
+  );
 
-      // ① 盲区度：暴露越少，盲区度越高
-      const blindSpotScore = 1 - Math.min(exposureCount / maxExposure, 1);
+  const scored: ScoredDimension[] = candidates.map((dim) => {
+    const exposureCount = input.exposure.get(dim.id) ?? dim.count;
 
-      // ② 冲击度：与用户高频领域的认知距离
-      const dimCategory = DIMENSION_CATEGORY[dim.id];
-      const avgDistance = highExposureCategories.length > 0
-        ? highExposureCategories.reduce((sum, cat) => sum + (CATEGORY_DISTANCE[dimCategory]?.[cat] ?? 0.5), 0) / highExposureCategories.length
-        : 0.5;
-      const impactScore = avgDistance;
+    // ① 盲区度：暴露越少，盲区度越高
+    const blindSpotScore = 1 - Math.min(exposureCount / maxExposure, 1);
 
-      // ③ 可接受度：根据难度等级调整
-      const acceptabilityScore = calculateAcceptability(dimCategory, highExposureCategories, input.difficultyLevel);
+    // ② 冲击度：DeepSeek 评估的认知距离（替代硬编码矩阵）
+    const impactScore = distanceMap.get(dim.id) ?? 0.5;
 
-      // 综合分：加权
-      const weights = getWeights(input.difficultyLevel);
-      const totalScore =
-        blindSpotScore * weights.blindSpot +
-        impactScore * weights.impact +
-        acceptabilityScore * weights.acceptability;
+    // ③ 可接受度：根据难度等级 + 类别距离（fallback 逻辑保留）
+    const dimCategory = DIMENSION_CATEGORY[dim.id];
+    const highExposureCategories = input.highExposureFields
+      .map((name) => {
+        const d = COGNITIVE_DIMENSIONS.find((x) => x.name === name);
+        return d ? DIMENSION_CATEGORY[d.id] : null;
+      })
+      .filter(Boolean) as string[];
 
-      return {
-        dimensionId: dim.id,
-        dimensionName: dim.name,
-        blindSpotScore,
-        impactScore,
-        acceptabilityScore,
-        totalScore,
-      };
-    });
+    const acceptabilityScore = calculateAcceptability(
+      dimCategory,
+      highExposureCategories,
+      input.difficultyLevel
+    );
+
+    // 综合分：加权
+    const weights = getWeights(input.difficultyLevel);
+    const totalScore =
+      blindSpotScore * weights.blindSpot +
+      impactScore * weights.impact +
+      acceptabilityScore * weights.acceptability;
+
+    return {
+      dimensionId: dim.id,
+      dimensionName: dim.name,
+      blindSpotScore,
+      impactScore,
+      acceptabilityScore,
+      totalScore,
+    };
+  });
 
   // 按难度等级过滤
-  const filtered = filterByDifficulty(scored, input.difficultyLevel, highExposureCategories);
+  const filtered = filterByDifficulty(scored, input.difficultyLevel, input.highExposureFields);
 
   // 综合排序，取 Top 3
   const top3 = filtered.sort((a, b) => b.totalScore - a.totalScore).slice(0, 3);
@@ -139,38 +152,30 @@ function calculateAcceptability(
   if (highExposureCategories.length === 0) return 0.5;
 
   const avgDistance = highExposureCategories.reduce((sum, cat) =>
-    sum + (CATEGORY_DISTANCE[dimCategory]?.[cat] ?? 0.5), 0) / highExposureCategories.length;
+    sum + (FALLBACK_DISTANCE[dimCategory]?.[cat] ?? 0.5), 0) / highExposureCategories.length;
 
   switch (difficultyLevel) {
     case "L1":
-      // L1 优先推距离近的（距离越小，可接受度越高）
       return 1 - avgDistance;
     case "L2":
-      // L2 优先推中等距离的（距离 0.4-0.6 最好）
       return 1 - Math.abs(avgDistance - 0.5) * 2;
     case "L3":
-      // L3 优先推距离远的（距离越大，可接受度越高）
       return avgDistance;
   }
 }
 
-/** 按难度等级过滤维度 */
+/** 按难度等级过滤维度（基于 DeepSeek 评估的距离） */
 function filterByDifficulty(
   scored: ScoredDimension[],
   difficultyLevel: DifficultyLevel,
-  highExposureCategories: string[]
+  highExposureFields: string[]
 ): ScoredDimension[] {
-  if (highExposureCategories.length === 0) return scored;
-
+  // 使用 DeepSeek 评估的 impactScore 进行过滤
   return scored.filter((s) => {
-    const dimCategory = DIMENSION_CATEGORY[s.dimensionId];
-    const avgDistance = highExposureCategories.reduce((sum, cat) =>
-      sum + (CATEGORY_DISTANCE[dimCategory]?.[cat] ?? 0.5), 0) / highExposureCategories.length;
-
     switch (difficultyLevel) {
-      case "L1": return avgDistance < 0.6;  // 相邻盲区
-      case "L2": return avgDistance >= 0.3 && avgDistance <= 0.8; // 中距盲区
-      case "L3": return avgDistance >= 0.5;  // 远端盲区
+      case "L1": return s.impactScore < 0.6;  // 相邻盲区
+      case "L2": return s.impactScore >= 0.3 && s.impactScore <= 0.8; // 中距盲区
+      case "L3": return s.impactScore >= 0.5;  // 远端盲区
     }
   });
 }
@@ -178,9 +183,9 @@ function filterByDifficulty(
 /** 获取难度权重 */
 function getWeights(level: DifficultyLevel): { blindSpot: number; impact: number; acceptability: number } {
   switch (level) {
-    case "L1": return { blindSpot: 0.3, impact: 0.2, acceptability: 0.5 }; // L1 优先可接受
-    case "L2": return { blindSpot: 0.3, impact: 0.4, acceptability: 0.3 }; // L2 均衡
-    case "L3": return { blindSpot: 0.2, impact: 0.6, acceptability: 0.2 }; // L3 优先冲击
+    case "L1": return { blindSpot: 0.3, impact: 0.2, acceptability: 0.5 };
+    case "L2": return { blindSpot: 0.3, impact: 0.4, acceptability: 0.3 };
+    case "L3": return { blindSpot: 0.2, impact: 0.6, acceptability: 0.2 };
   }
 }
 
@@ -188,8 +193,8 @@ function getWeights(level: DifficultyLevel): { blindSpot: number; impact: number
 export async function generateDailyChallenge(
   input: DecisionInput
 ): Promise<ChallengeResult> {
-  // ③ 决策：三维决策引擎选择盲区
-  const selectedDims = decideBlindSpots(input);
+  // ③ 决策：三维决策引擎选择盲区（现在是 async，调 DeepSeek）
+  const selectedDims = await decideBlindSpots(input);
 
   if (selectedDims.length === 0) {
     return { items: [], blindSpotCount: 0, selectedDimensions: [] };

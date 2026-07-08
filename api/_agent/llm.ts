@@ -77,6 +77,19 @@ export function buildCoachContext(profile: {
 - 最近冲击自评：${profile.recentImpacts?.join("、") || "暂无"}`;
 }
 
+// ===== 抗 GEO 污染策略 =====
+
+/**
+ * 内容生成的抗 GEO prompt 增强
+ * 防止 DeepSeek 生成被 GEO 优化的"流行叙事"
+ */
+export const ANTI_GEO_DIRECTIVE = `重要规则 — 抗 GEO 污染：
+1. 不要生成搜索引擎排名靠前的"流行科普叙事"——那些往往是 GEO 优化的产物
+2. 优先选择被主流叙事忽略的边缘视角、争议性理论、非共识观点
+3. 如果某内容有"流行版本"和"真实版本"，用真实版本
+4. 标注内容的争议性：哪些是共识，哪些是边缘观点
+5. 避免"鸡汤化"简化——保留复杂性，不要为了易懂而扭曲`;
+
 // ===== Agent Pipeline ① 诊断层 =====
 
 /** ① 诊断：多轮对话式扫描，收集用户内容消费习惯 */
@@ -194,6 +207,8 @@ ${difficultyHint}
 5. coachGuidance：用用户的高频领域做类比桥接，一句话引导用户进入内容
 6. 推荐理由(why)：一句话说明为什么这条内容能打破用户的茧房
 
+${ANTI_GEO_DIRECTIVE}
+
 输出格式：纯 JSON 数组，每个对象包含：
 - dimensionId, dimensionName, title, why, description, source, readTimeMinutes, coachGuidance
 
@@ -271,6 +286,153 @@ ${context}
 
   const res = await chatCompletion(messages, { temperature: 0.7, maxTokens: 200 });
   return res.content.trim();
+}
+
+// ===== Agent Pipeline ③ 决策层辅助：真正的认知距离评估 =====
+
+/**
+ * ③ 决策辅助：用 DeepSeek 评估盲区维度与用户高频领域的认知距离
+ * 替代 recommender.ts 中的硬编码 5×5 矩阵
+ * 返回 0-1 分数：0=认知距离近，1=认知距离远
+ */
+export async function evaluateCognitiveDistance(
+  blindSpotName: string,
+  highExposureNames: string[]
+): Promise<number> {
+  if (highExposureNames.length === 0) return 0.5;
+
+  const messages: ChatMessage[] = [
+    {
+      role: "system",
+      content: `你是认知距离评估器。评估一个"认知盲区"与用户"高频领域"之间的认知距离。
+
+认知距离定义：
+- 0.0-0.2：极度相邻（同一领域不同分支，如"娱乐八卦"→"影视综艺"）
+- 0.3-0.4：相关但不同（有概念交集，如"科技数码"→"汽车"）
+- 0.5-0.6：中等距离（需要认知跨越，如"美食"→"历史"）
+- 0.7-0.8：远距（完全不同思维模式，如"搞笑视频"→"哲学"）
+- 0.9-1.0：极远（认知范式断裂，如"娱乐八卦"→"粒子物理"）
+
+只输出一个 0-1 的小数，不要任何解释。`,
+    },
+    {
+      role: "user",
+      content: `盲区维度：${blindSpotName}
+用户高频领域：${highExposureNames.join("、")}
+
+认知距离分数（0-1）：`,
+    },
+  ];
+
+  const res = await chatCompletion(messages, { temperature: 0, maxTokens: 10 });
+  const score = parseFloat(res.content.trim());
+  if (isNaN(score)) return 0.5;
+  return Math.max(0, Math.min(1, score));
+}
+
+/**
+ * 批量评估认知距离（减少 API 调用次数）
+ * 返回 Map<dimensionId, distanceScore>
+ */
+export async function evaluateCognitiveDistances(
+  blindSpots: Array<{ id: string; name: string }>,
+  highExposureNames: string[]
+): Promise<Map<string, number>> {
+  if (highExposureNames.length === 0 || blindSpots.length === 0) {
+    return new Map(blindSpots.map((b) => [b.id, 0.5]));
+  }
+
+  const blindSpotDesc = blindSpots.map((b) => `${b.id}:${b.name}`).join(", ");
+
+  const messages: ChatMessage[] = [
+    {
+      role: "system",
+      content: `你是认知距离评估器。评估每个"认知盲区"与用户"高频领域"之间的认知距离。
+
+认知距离定义：
+- 0.0-0.2：极度相邻
+- 0.3-0.4：相关但不同
+- 0.5-0.6：中等距离
+- 0.7-0.8：远距
+- 0.9-1.0：极远
+
+输出 JSON 对象，key 是维度ID，value 是 0-1 的距离分数。只输出 JSON。`,
+    },
+    {
+      role: "user",
+      content: `用户高频领域：${highExposureNames.join("、")}
+
+需要评估的盲区：${blindSpotDesc}
+
+输出 JSON（{ "维度ID": 距离分数 }）：`,
+    },
+  ];
+
+  try {
+    const res = await chatCompletion(messages, { temperature: 0, maxTokens: 300 });
+    const jsonMatch = res.content.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      const parsed = JSON.parse(jsonMatch[0]);
+      const result = new Map<string, number>();
+      for (const [k, v] of Object.entries(parsed)) {
+        const score = Number(v);
+        if (!isNaN(score)) result.set(k, Math.max(0, Math.min(1, score)));
+      }
+      // 确保所有维度都有分数
+      for (const b of blindSpots) {
+        if (!result.has(b.id)) result.set(b.id, 0.5);
+      }
+      return result;
+    }
+  } catch (e) {
+    console.error("[LLM] 批量评估认知距离失败，使用默认值:", e);
+  }
+
+  // 失败时返回默认值 0.5
+  return new Map(blindSpots.map((b) => [b.id, 0.5]));
+}
+
+// ===== Agent Pipeline ⑥ 反哺层扩展：教练记忆 =====
+
+/**
+ * ⑥ 反哺扩展：从对话中提取关键洞察，存入教练记忆
+ * PRD 承诺：coachMemory.keyInsights
+ */
+export async function extractKeyInsight(
+  userMessage: string,
+  coachReply: string,
+  context: string
+): Promise<string | null> {
+  const messages: ChatMessage[] = [
+    {
+      role: "system",
+      content: `你是认知成长教练的记忆助手。从一段对话中提取一个关键洞察——关于用户认知偏见的发现、用户自己的反思、或教练识别的思维模式。
+
+要求：
+1. 只提取 1 条最有价值的洞察
+2. 不超过 50 字
+3. 用第三人称记录（"用户..."）
+4. 如果对话没有有价值的洞察，输出 "null"
+
+只输出洞察文本或 "null"，不要任何额外解释。`,
+    },
+    {
+      role: "user",
+      content: `用户档案上下文：
+${context}
+
+对话记录：
+用户：${userMessage}
+教练：${coachReply}
+
+提取关键洞察：`,
+    },
+  ];
+
+  const res = await chatCompletion(messages, { temperature: 0.3, maxTokens: 80 });
+  const insight = res.content.trim();
+  if (insight === "null" || insight === "") return null;
+  return insight;
 }
 
 // ===== Agent Pipeline ⑦ 对话层（在 coach.ts 中实现） =====

@@ -84,6 +84,10 @@ export async function submitAssessment(
   if (data.newMilestones?.length > 0) {
     profileManager.addMilestones(data.newMilestones);
   }
+  // 存入教练记忆（PRD 承诺：coachMemory.keyInsights）
+  if (data.keyInsight) {
+    profileManager.addKeyInsight(data.keyInsight);
+  }
 
   return data;
 }
@@ -103,10 +107,16 @@ export async function getGrowthData(): Promise<any> {
 }
 
 // ⑦ 教练对话
+export interface CoachReply {
+  method: string; // socratic | analogy | counterfactual | memory | general
+  content: string;
+  keyInsight: string | null;
+}
+
 export async function chatWithCoach(
   message: string,
   history: Array<{ role: string; content: string }>
-): Promise<string> {
+): Promise<CoachReply> {
   const profile = getProfile();
   if (!profile) throw new Error("请先完成诊断扫描");
   const data = await post("/coach", {
@@ -114,7 +124,11 @@ export async function chatWithCoach(
     history,
     profile: profileManager.toApiFormat(profile),
   });
-  return data.reply;
+  // 存入教练记忆（PRD 承诺：coachMemory.keyInsights）
+  if (data.keyInsight) {
+    profileManager.addKeyInsight(data.keyInsight);
+  }
+  return { method: data.method, content: data.content, keyInsight: data.keyInsight };
 }
 
 // 内容详情

@@ -1,0 +1,716 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>茧房爆破器 — 架构审视 v4.0.1</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,600;9..144,800&family=JetBrains+Mono:wght@300;400;500;600&family=Noto+Serif+SC:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink: #1a1a1f;
+    --paper: #fafaf7;
+    --paper-warm: #f4f2ec;
+    --rule: #d8d4c8;
+    --rule-strong: #8a8478;
+    --accent: #c2410c;
+    --accent-soft: #fed7aa;
+    --critical: #991b1b;
+    --critical-soft: #fecaca;
+    --ok: #166534;
+    --ok-soft: #bbf7d0;
+    --muted: #6b6657;
+    --dim: #a8a294;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: 'JetBrains Mono', 'Noto Serif SC', monospace;
+    background: var(--paper);
+    color: var(--ink);
+    font-size: 14px;
+    line-height: 1.7;
+    -webkit-font-smoothing: antialiased;
+  }
+  .serif { font-family: 'Fraunces', 'Noto Serif SC', serif; }
+  .cn-serif { font-family: 'Noto Serif SC', 'Fraunces', serif; }
+  .mono { font-family: 'JetBrains Mono', monospace; }
+
+  /* 纸张纹理 */
+  body::before {
+    content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 1;
+    background-image:
+      radial-gradient(circle at 20% 30%, rgba(194,65,12,0.015) 0%, transparent 50%),
+      radial-gradient(circle at 80% 70%, rgba(26,26,31,0.02) 0%, transparent 50%);
+  }
+
+  .wrap { max-width: 880px; margin: 0 auto; padding: 0 32px; position: relative; z-index: 2; }
+
+  /* 顶部刊头 */
+  .masthead {
+    border-bottom: 3px double var(--ink);
+    padding: 48px 0 24px;
+    margin-bottom: 48px;
+  }
+  .masthead-top {
+    display: flex; justify-content: space-between; align-items: baseline;
+    font-size: 10px; letter-spacing: 0.2em; text-transform: uppercase;
+    color: var(--muted); margin-bottom: 32px;
+  }
+  .masthead h1 {
+    font-family: 'Fraunces', serif; font-weight: 300;
+    font-size: clamp(2.5rem, 6vw, 4.5rem); line-height: 0.95;
+    letter-spacing: -0.02em; font-style: italic;
+  }
+  .masthead h1 .cn {
+    font-family: 'Noto Serif SC', serif; font-style: normal; font-weight: 800;
+  }
+  .masthead-sub {
+    margin-top: 16px; font-size: 13px; color: var(--muted);
+    display: flex; gap: 24px; flex-wrap: wrap;
+  }
+  .masthead-sub span::before { content: '— '; }
+
+  /* 章节 */
+  section { padding: 48px 0; border-bottom: 1px solid var(--rule); }
+  section:last-of-type { border-bottom: none; }
+
+  .sec-head { display: flex; align-items: baseline; gap: 16px; margin-bottom: 32px; }
+  .sec-num {
+    font-family: 'Fraunces', serif; font-size: 48px; font-weight: 300;
+    color: var(--accent); line-height: 1; font-style: italic;
+  }
+  .sec-title {
+    font-family: 'Noto Serif SC', serif; font-weight: 800;
+    font-size: 28px; line-height: 1.2;
+  }
+  .sec-kicker {
+    font-size: 10px; letter-spacing: 0.25em; text-transform: uppercase;
+    color: var(--muted); margin-bottom: 4px;
+  }
+
+  /* 正文段落 */
+  p { margin-bottom: 16px; max-width: 68ch; }
+  p.lead { font-size: 16px; color: var(--ink); font-family: 'Noto Serif SC', serif; line-height: 1.8; }
+
+  /* 引用 */
+  .pullquote {
+    border-left: 3px solid var(--accent);
+    padding: 16px 0 16px 24px; margin: 32px 0;
+    font-family: 'Fraunces', serif; font-style: italic;
+    font-size: 20px; line-height: 1.5; color: var(--ink);
+  }
+  .pullquote .cn { font-family: 'Noto Serif SC', serif; font-style: normal; font-weight: 600; }
+
+  /* 问题卡片 */
+  .issue {
+    background: var(--paper-warm);
+    border: 1px solid var(--rule);
+    padding: 24px 28px; margin: 20px 0;
+    position: relative;
+  }
+  .issue::before {
+    content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
+    background: var(--accent);
+  }
+  .issue.critical::before { background: var(--critical); }
+  .issue.ok::before { background: var(--ok); }
+
+  .issue-head {
+    display: flex; align-items: center; gap: 12px; margin-bottom: 8px;
+    font-size: 10px; letter-spacing: 0.2em; text-transform: uppercase;
+  }
+  .issue-tag {
+    padding: 2px 8px; font-weight: 600;
+  }
+  .tag-critical { background: var(--critical-soft); color: var(--critical); }
+  .tag-warn { background: var(--accent-soft); color: var(--accent); }
+  .tag-ok { background: var(--ok-soft); color: var(--ok); }
+  .tag-info { background: var(--rule); color: var(--muted); }
+
+  .issue-title {
+    font-family: 'Noto Serif SC', serif; font-weight: 600;
+    font-size: 17px; margin-bottom: 8px; line-height: 1.4;
+  }
+  .issue-body { font-size: 13px; color: var(--muted); line-height: 1.75; }
+  .issue-body code {
+    background: var(--paper); padding: 1px 6px; font-size: 12px;
+    border: 1px solid var(--rule); color: var(--accent);
+  }
+  .issue-fix {
+    margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--rule);
+    font-size: 12px; color: var(--ink);
+  }
+  .issue-fix::before { content: '→ 修复方向：'; color: var(--ok); font-weight: 600; }
+
+  /* 表格 */
+  table { width: 100%; border-collapse: collapse; margin: 24px 0; font-size: 12px; }
+  th { text-align: left; padding: 8px 12px; border-bottom: 2px solid var(--ink); font-weight: 600; font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+  td { padding: 10px 12px; border-bottom: 1px solid var(--rule); vertical-align: top; }
+  tr:hover td { background: var(--paper-warm); }
+
+  /* 代码块 */
+  pre {
+    background: var(--ink); color: #e8e4d8;
+    padding: 20px 24px; margin: 20px 0;
+    font-size: 12px; line-height: 1.65; overflow-x: auto;
+    border-radius: 2px;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  pre .c { color: #78716c; }
+  pre .k { color: #fb923c; }
+  pre .s { color: #86efac; }
+  pre .n { color: #fde68a; }
+
+  /* 架构图 */
+  .diagram {
+    background: var(--paper-warm); border: 1px solid var(--rule);
+    padding: 32px; margin: 24px 0; overflow-x: auto;
+  }
+  .diagram pre { background: transparent; color: var(--ink); border: none; padding: 0; }
+  .diagram-label {
+    font-size: 10px; letter-spacing: 0.2em; text-transform: uppercase;
+    color: var(--muted); margin-bottom: 16px;
+  }
+
+  /* 标注 */
+  .annotate { position: relative; }
+  .annotate::after {
+    content: attr(data-note); position: absolute; right: -180px; top: 0;
+    width: 160px; font-size: 11px; color: var(--accent);
+    border-left: 2px solid var(--accent); padding-left: 10px;
+    line-height: 1.5;
+  }
+
+  /* 清单 */
+  ul.checklist { list-style: none; padding: 0; }
+  ul.checklist li {
+    padding: 8px 0 8px 28px; position: relative;
+    border-bottom: 1px solid var(--rule); font-size: 13px;
+  }
+  ul.checklist li::before {
+    content: '☐'; position: absolute; left: 0; color: var(--rule-strong);
+    font-size: 16px;
+  }
+  ul.checklist li.done::before { content: '☒'; color: var(--ok); }
+  ul.checklist li.done { color: var(--muted); text-decoration: line-through; }
+
+  /* 页脚 */
+  footer {
+    padding: 48px 0 64px; border-top: 3px double var(--ink);
+    margin-top: 48px; text-align: center;
+  }
+  footer .colophon {
+    font-size: 11px; color: var(--muted); line-height: 1.8;
+    font-style: italic; font-family: 'Fraunces', serif;
+  }
+
+  /* 目录 */
+  .toc {
+    background: var(--paper-warm); border: 1px solid var(--rule);
+    padding: 24px 32px; margin: 32px 0 48px;
+    columns: 2; column-gap: 48px;
+  }
+  .toc-item {
+    display: flex; align-items: baseline; gap: 8px;
+    font-size: 12px; padding: 4px 0; break-inside: avoid;
+  }
+  .toc-num { color: var(--accent); font-weight: 600; min-width: 24px; }
+  .toc-title { color: var(--ink); }
+  .toc-dots { flex: 1; border-bottom: 1px dotted var(--rule-strong); margin: 0 4px; transform: translateY(-4px); }
+  .toc-page { color: var(--muted); }
+
+  @media (max-width: 768px) {
+    .wrap { padding: 0 20px; }
+    .toc { columns: 1; }
+    .annotate::after { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+  <!-- ============ 刊头 ============ -->
+  <header class="masthead">
+    <div class="masthead-top">
+      <span>Architecture Review · 架构审视</span>
+      <span>Vol. 4.0.1 · 2026.07.08</span>
+    </div>
+    <h1>
+      <span class="cn">茧房爆破器</span><br>
+      <em>不赞美，只审视。</em>
+    </h1>
+    <div class="masthead-sub">
+      <span>前端 + 后端 + 数据 + 模型 四层架构诚实录</span>
+      <span>不部署，只梳理</span>
+      <span>PRD v4.0 vs 实际实现的差距分析</span>
+    </div>
+  </header>
+
+  <!-- ============ 目录 ============ -->
+  <nav class="toc">
+    <div class="toc-item"><span class="toc-num">01</span><span class="toc-title">现状盘点</span><span class="toc-dots"></span><span class="toc-page">死代码与遗留物</span></div>
+    <div class="toc-item"><span class="toc-num">02</span><span class="toc-title">前端架构</span><span class="toc-dots"></span><span class="toc-page">六个真实问题</span></div>
+    <div class="toc-item"><span class="toc-num">03</span><span class="toc-title">后端架构</span><span class="toc-dots"></span><span class="toc-page">伪算法与设计债</span></div>
+    <div class="toc-item"><span class="toc-num">04</span><span class="toc-title">数据架构</span><span class="toc-dots"></span><span class="toc-page">资产还是负担</span></div>
+    <div class="toc-item"><span class="toc-num">05</span><span class="toc-title">模型架构</span><span class="toc-dots"></span><span class="toc-page">Prompt 不是工程</span></div>
+    <div class="toc-item"><span class="toc-num">06</span><span class="toc-title">护城河真相</span><span class="toc-dots"></span><span class="toc-page">四层逐一拆解</span></div>
+    <div class="toc-item"><span class="toc-num">07</span><span class="toc-title">重构方向</span><span class="toc-dots"></span><span class="toc-page">从伪到真的路径</span></div>
+    <div class="toc-item"><span class="toc-num">08</span><span class="toc-title">遗留清单</span><span class="toc-dots"></span><span class="toc-page">待删/待改/待建</span></div>
+  </nav>
+
+  <!-- ============ 01 现状盘点 ============ -->
+  <section id="s1">
+    <div class="sec-head">
+      <span class="sec-num">01</span>
+      <div>
+        <div class="sec-kicker">Inventory · 现状盘点</div>
+        <h2 class="sec-title">先承认房间里有什么</h2>
+      </div>
+    </div>
+
+    <p class="lead">在讨论"架构应该怎样"之前，先诚实地盘点"架构现在是什么"。当前代码库存在多层历史遗留：v1.0 的硬编码内容、v2.0 的 mock 数据、v3.0 的旧路由、v4.0 的新 Pipeline——它们共存在同一个仓库里，其中一部分已经没有任何引用。</p>
+
+    <div class="diagram">
+      <div class="diagram-label">当前文件树（活跃 / 死代码标注）</div>
+<pre>
+src/
+├── pages/
+│   ├── <span style="color:#166534">DiagScanPage.tsx</span>      <span style="color:#78716c">← v4.0 活跃，诊断式扫描</span>
+│   ├── <span style="color:#166534">ChallengePage.tsx</span>     <span style="color:#78716c">← v4.0 活跃，每日挑战</span>
+│   ├── <span style="color:#166534">ReaderPage.tsx</span>        <span style="color:#78716c">← v4.0 活跃，阅读+自评</span>
+│   ├── <span style="color:#166534">GrowthPage.tsx</span>        <span style="color:#78716c">← v4.0 活跃，成长曲线</span>
+│   ├── <span style="color:#166534">MilestonePage.tsx</span>     <span style="color:#78716c">← v4.0 活跃，里程碑墙</span>
+│   ├── <span style="color:#166534">HeatmapPage.tsx</span>       <span style="color:#78716c">← v4.0 活跃，认知热力图</span>
+│   └── <span style="color:#991b1b">Home.tsx</span>              <span style="color:#991b1b">← 死代码，空组件，无引用</span>
+├── data/
+│   └── <span style="color:#991b1b">mockData.ts</span>           <span style="color:#991b1b">← 死代码，import 不存在的 shared/types</span>
+├── hooks/
+│   └── <span style="color:#991b1b">useTheme.ts</span>           <span style="color:#991b1b">← 死代码，应用硬编码暗色，无明暗切换</span>
+├── components/
+│   ├── <span style="color:#166534">NavBar.tsx</span>            <span style="color:#78716c">← 活跃</span>
+│   ├── <span style="color:#166534">CoachChat.tsx</span>         <span style="color:#78716c">← 活跃</span>
+│   └── <span style="color:#991b1b">Empty.tsx</span>             <span style="color:#991b1b">← 死代码，占位组件，无引用</span>
+api/
+├── data/
+│   └── <span style="color:#991b1b">cognitiveDimensions.json</span>  <span style="color:#991b1b">← 死代码，schema 与 domains.ts 不一致</span>
+</pre>
+    </div>
+
+    <div class="issue critical">
+      <div class="issue-head">
+        <span class="issue-tag tag-critical">Critical</span>
+        <span>schema 冲突</span>
+      </div>
+      <div class="issue-title">cognitiveDimensions.json 与 domains.ts 的维度 ID 完全不同</div>
+      <div class="issue-body">
+        <code>domains.ts</code> 用 <code>physics / astronomy / math</code>；<code>cognitiveDimensions.json</code> 用 <code>particle-physics</code>（带连字符）且带 emoji 图标。两套数据模型共存，后者虽然无引用，但存在误导风险。
+      </div>
+      <div class="issue-fix">删除 <code>api/data/cognitiveDimensions.json</code>、<code>src/data/mockData.ts</code>、<code>src/hooks/useTheme.ts</code>、<code>src/components/Empty.tsx</code>、<code>src/pages/Home.tsx</code>。共 5 个死文件。</div>
+    </div>
+  </section>
+
+  <!-- ============ 02 前端架构 ============ -->
+  <section id="s2">
+    <div class="sec-head">
+      <span class="sec-num">02</span>
+      <div>
+        <div class="sec-kicker">Frontend · 前端架构</div>
+        <h2 class="sec-title">六个真实存在的问题</h2>
+      </div>
+    </div>
+
+    <p class="lead">前端是 v4.0 重写最彻底的部分，6 个页面 + 2 个组件 + 1 个档案管理器 + 1 个 API 客户端。表面完整，但底层有六个结构性问题。</p>
+
+    <div class="issue critical">
+      <div class="issue-head"><span class="issue-tag tag-critical">Critical</span><span>无错误边界</span></div>
+      <div class="issue-title">任何一个 API 调用抛错，整个页面白屏</div>
+      <div class="issue-body">
+        <code>App.tsx</code> 没有 <code>&lt;ErrorBoundary&gt;</code>。当 DeepSeek API 返回 500（例如 Key 未配置），<code>getChallenge()</code> 抛出 <code>Error</code>，React 组件树崩溃，用户看到空白。当前各页面用 <code>try-catch</code> + <code>setError</code> 兜底，但只覆盖了"已预见"的错误，未预见的渲染错误依然白屏。
+      </div>
+      <div class="issue-fix">在 <code>App.tsx</code> 的 <code>&lt;Routes&gt;</code> 外层包一个 <code>ErrorBoundary</code> 组件，捕获渲染错误并显示降级 UI + "重新诊断"入口。</div>
+    </div>
+
+    <div class="issue critical">
+      <div class="issue-head"><span class="issue-tag tag-critical">Critical</span><span>数据无界增长</span></div>
+      <div class="issue-title">impactHistory 持续累积，localStorage 5MB 上限迟早爆掉</div>
+      <div class="issue-body">
+        <code>profileManager.recordImpact()</code> 每次 <code>push</code> 一条完整记录（含 title、reflection 文本）。用户用 3 个月、每天 3 篇，<code>impactHistory</code> 约 270 条，每条约 200 字，约 54KB——看似不大。但 <code>profile</code> 是整体 JSON 序列化进 localStorage，加上 <code>readHistory</code>、<code>milestones</code>、<code>currentExposure</code>，且每次 <code>saveProfile</code> 都是全量覆盖。一旦数据增长或 schema 变更，<code>JSON.parse</code> 失败 → 档案丢失。
+      </div>
+      <div class="issue-fix">1) <code>impactHistory</code> 只保留最近 100 条 + 聚合统计；2) 添加 <code>profileVersion</code> 字段，支持 schema 迁移；3) <code>saveProfile</code> 包 try-catch，配额不足时自动归档。</div>
+    </div>
+
+    <div class="issue">
+      <div class="issue-head"><span class="issue-tag tag-warn">Warn</span><span>路由守卫分散</span></div>
+      <div class="issue-title">6 条路由各自写 hasProfile ? : &lt;Navigate to="/scan" /&gt;，逻辑重复</div>
+      <div class="issue-body">
+        <code>App.tsx</code> 每条 <code>&lt;Route&gt;</code> 都重复 <code>hasProfile ? &lt;Page /&gt; : &lt;Navigate to="/scan" /&gt;</code>。新增页面必须记得加守卫，容易遗漏。且 <code>/read/:id</code> 没有验证 <code>:id</code> 是否合法。
+      </div>
+      <div class="issue-fix">封装 <code>&lt;ProtectedRoute&gt;</code> 组件，统一处理档案检查 + 重定向。</div>
+    </div>
+
+    <div class="issue">
+      <div class="issue-head"><span class="issue-tag tag-warn">Warn</span><span>无加载骨架</span></div>
+      <div class="issue-title">页面切换时白屏闪烁，DeepSeek 调用 3-8 秒期间无反馈</div>
+      <div class="issue-body">
+        <code>ChallengePage</code> 调 <code>getChallenge()</code> 期间显示 <code>"加载中..."</code> 文本，但页面布局未占位，内容加载完后跳动。<code>ReaderPage</code> 同理。首屏 <code>DiagScanPage</code> 进入 <code>chat</code> 阶段时，教练回复前的 <code>loading</code> 态虽有动画，但整个对话区高度未稳定。
+      </div>
+      <div class="issue-fix">为每个页面定义骨架屏（Skeleton），保持布局稳定；DeepSeek 调用统一走 <code>Suspense</code> + <code>lazy</code>。</div>
+    </div>
+
+    <div class="issue">
+      <div class="issue-head"><span class="issue-tag tag-warn">Warn</span><span>状态管理职责不清</span></div>
+      <div class="issue-title">Zustand 只存 profile，但 API 调用状态（loading/error）散落各页面</div>
+      <div class="issue-body">
+        <code>useAppStore</code> 有 <code>loading / error</code> 字段，但每个页面又各自维护本地 <code>useState&lt;boolean&gt;</code> 的 <code>loading</code>。两套 loading 状态并存，<code>store.setError</code> 几乎没被调用。状态来源不统一，调试困难。
+      </div>
+      <div class="issue-fix">要么把所有异步状态收进 store（用 <code>createAsyncThunk</code> 思路），要么彻底放弃 store 的 <code>loading/error</code>，每个页面自治。不要两套并存。</div>
+    </div>
+
+    <div class="issue">
+      <div class="issue-head"><span class="issue-tag tag-info">Info</span><span>无数据导出</span></div>
+      <div class="issue-title">"认知数据资产"是护城河，但用户无法导出自己的档案</div>
+      <div class="issue-body">
+        <code>profileManager</code> 没有 <code>exportProfile()</code> / <code>importProfile()</code>。用户用 3 个月积累的档案锁死在 localStorage，清缓存即丢失。"资产"无法备份，就不是真正的资产。
+      </div>
+      <div class="issue-fix">添加 <code>exportProfile(): string</code>（返回 JSON）和 <code>importProfile(json: string)</code>，在设置页提供导出/导入按钮。</div>
+    </div>
+  </section>
+
+  <!-- ============ 03 后端架构 ============ -->
+  <section id="s3">
+    <div class="sec-head">
+      <span class="sec-num">03</span>
+      <div>
+        <div class="sec-kicker">Backend · 后端架构</div>
+        <h2 class="sec-title">伪算法与设计债</h2>
+      </div>
+    </div>
+
+    <p class="lead">后端是问题最集中的地方。PRD v4.0 写得很漂亮——"三维决策引擎"、"认知冲击度预测"、"DeepSeek 评估"——但实现与文档之间存在显著差距。</p>
+
+    <div class="pullquote">
+      <span class="cn">PRD 说"冲击度由 DeepSeek 评估（不是简单余弦距离）"，实现却是一个 5×5 的硬编码类别距离矩阵。</span>
+    </p>
+
+    <div class="issue critical">
+      <div class="issue-head"><span class="issue-tag tag-critical">Critical</span><span>伪算法</span></div>
+      <div class="issue-title">"三维决策引擎"实际是 5×5 硬编码矩阵 + 加权求和</div>
+      <div class="issue-body">
+        <code>recommender.ts</code> 的 <code>CATEGORY_DISTANCE</code> 是一个手写的 5×5 表（entertainment / life / knowledge / humanities / science 之间的距离）。"冲击度"= 查表取平均值。"可接受度"= 根据难度等级对距离做简单变换。"综合分"= 三个分数加权求和，权重也是硬编码。
+        <br><br>
+        这不是"预测"，是 <code>if-else</code>。任何工程师 10 分钟能复制。PRD 承诺的"DeepSeek 评估认知距离"完全没有实现——<code>generateChallenge()</code> 只负责生成内容文本，不参与决策。
+      </div>
+      <div class="issue-fix">两条路：1) <b>诚实路线</b>——承认这是规则引擎，PRD 改写，去掉"AI 预测"措辞；2) <b>真正路线</b>——增加 <code>evaluateCognitiveDistance()</code> 函数，让 DeepSeek 在决策阶段评估"盲区维度与用户高频领域的认知距离"，返回 0-1 分数。</div>
+    </div>
+
+    <div class="issue critical">
+      <div class="issue-head"><span class="issue-tag tag-critical">Critical</span><span>无缓存</span></div>
+      <div class="issue-title">每次 /challenge 都调用 DeepSeek，3-8 秒延迟 + 成本失控</div>
+      <div class="issue-body">
+        <code>generateDailyChallenge()</code> → <code>generateChallenge()</code> → <code>chatCompletion()</code>，每次请求都是全新 DeepSeek 调用。用户每天点"每日挑战" = 1 次调用；点 3 张卡片各看详情 = 3 次调用；自评反哺 = 1 次调用。单用户单日 ≥5 次 DeepSeek 调用。无缓存，无去重，无批处理。
+      </div>
+      <div class="issue-fix">1) <code>/challenge</code> 结果按 <code>userId + date</code> 缓存 24h（前端 localStorage 即可）；2) <code>getContentDetail</code> 按 <code>dimensionId + difficultyLevel</code> 缓存；3) 批量生成：一次 <code>generateChallenge</code> 同时生成 3 篇，不再逐篇调详情。</div>
+    </div>
+
+    <div class="issue">
+      <div class="issue-head"><span class="issue-tag tag-warn">Warn</span><span>RESTful 违规</span></div>
+      <div class="issue-title">POST /map 和 POST /growth 是读取操作，却用 POST</div>
+      <div class="issue-body">
+        <code>/api/agent/map</code> 接收 exposure 返回认知地图（纯计算），<code>/api/agent/growth</code> 接收 profile 返回成长曲线（纯聚合）。两者都是幂等读取，却用 POST。虽然 Serverless 场景下 GET + body 也不规范，但至少应该用 GET + query params。
+      </div>
+      <div class="issue-fix"><code>/map?exposure=...</code> 改 GET（exposure 太大时保留 POST 但加 <code>Cache-Control</code>）；<code>/growth</code> 同理。</div>
+    </div>
+
+    <div class="issue">
+      <div class="issue-head"><span class="issue-tag tag-warn">Warn</span><span>无请求校验</span></div>
+      <div class="issue-title">req.body 不做 schema 校验，畸形请求直接 500</div>
+      <div class="issue-body">
+        每个路由直接解构 <code>req.body</code>，没有 <code>zod</code> / <code>joi</code> 校验。<code>exposure</code> 期望 <code>Record&lt;string, number&gt;</code>，但如果前端传 <code>null</code>，<code>Object.entries(null)</code> 抛错 → 500。错误信息暴露内部逻辑。
+      </div>
+      <div class="issue-fix">引入 <code>zod</code>，每个端点定义请求 schema，校验失败返回 400 + 明确字段错误。</div>
+    </div>
+
+    <div class="issue">
+      <div class="issue-head"><span class="issue-tag tag-warn">Warn</span><span>无速率限制</span></div>
+      <div class="issue-title">DeepSeek API 成本无控制，单用户可无限调用</div>
+      <div class="issue-body">
+        没有 rate limiting。恶意用户可以在 1 分钟内调用 <code>/challenge</code> 1000 次，每次触发 DeepSeek 调用，直接打爆 API 配额。
+      </div>
+      <div class="issue-fix">基于 IP 的简单限流（<code>express-rate-limit</code>），每 IP 每分钟 10 次。生产环境加 Vercel Edge 配额。</div>
+    </div>
+
+    <div class="issue">
+      <div class="issue-head"><span class="issue-tag tag-info">Info</span><span>无状态传输浪费</span></div>
+      <div class="issue-title">每次请求传完整 profile，但大部分字段用不到</div>
+      <div class="issue-body">
+        <code>/challenge</code> 只需要 <code>exposure + readHistory + difficultyLevel + highExposureFields</code>，但 <code>apiClient</code> 的 <code>getApiProfile()</code> 把整个 profile（含 <code>impactHistory</code> 全量历史）都发了。3 个月后单次请求体可能 50KB+。
+      </div>
+      <div class="issue-fix">每个端点定义所需的 profile 子集，<code>apiClient</code> 按端点裁剪传输数据。</div>
+    </div>
+  </section>
+
+  <!-- ============ 04 数据架构 ============ -->
+  <section id="s4">
+    <div class="sec-head">
+      <span class="sec-num">04</span>
+      <div>
+        <div class="sec-kicker">Data · 数据架构</div>
+        <h2 class="sec-title">资产还是负担</h2>
+      </div>
+    </div>
+
+    <p class="lead">PRD 把"认知数据资产"列为第一护城河，但当前数据架构既不是资产，也无法成为资产——它是一个随时可能丢失的 localStorage JSON。</p>
+
+    <table>
+      <thead>
+        <tr><th>PRD 承诺</th><th>实际实现</th><th>差距</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>初始认知档案</td><td>✅ 存于 localStorage</td><td>无版本号，schema 变更即损坏</td></tr>
+        <tr><td>暴露历史</td><td>⚠️ 只存当前值，无历史快照</td><td>PRD 说"每次阅读后更新"，但没有历史版本</td></tr>
+        <tr><td>冲击历史</td><td>✅ impactHistory 数组</td><td>无上限，无聚合，无归档</td></tr>
+        <tr><td>成长曲线</td><td>⚠️ 从 impactHistory 派生</td><td>不是独立存储，每次 /growth 重新计算</td></tr>
+        <tr><td>认知指纹</td><td>❌ 完全未实现</td><td>PRD 写了，代码里没有</td></tr>
+        <tr><td>里程碑</td><td>✅ milestones 数组</td><td>触发逻辑在 assessor.ts，简单按数量</td></tr>
+        <tr><td>教练记忆</td><td>❌ 未实现 keyInsights</td><td>profile 有字段但从未写入</td></tr>
+        <tr><td>数据导出/导入</td><td>❌ 未实现</td><td>"资产"无法备份</td></tr>
+      </tbody>
+    </table>
+
+    <div class="issue critical">
+      <div class="issue-head"><span class="issue-tag tag-critical">Critical</span><span>数据易失</span></div>
+      <div class="issue-title">localStorage 不是数据库，清缓存 / 换浏览器 / 换设备 = 档案丢失</div>
+      <div class="issue-body">
+        用户用 3 个月建立的认知档案，清一次浏览器缓存就全没了。这不是"数据资产"，是"数据赌注"。PRD 说"MVP 阶段 localStorage，进阶阶段后端持久化"——但如果护城河是数据资产，这个"进阶阶段"应该是 MVP 的一部分。
+      </div>
+      <div class="issue-fix">1) 短期：实现 <code>exportProfile</code> / <code>importProfile</code>，用户手动备份；2) 中期：接入 Supabase 匿名账号，profile 自动云端同步；3) 长期：多设备同步 + 数据迁移。</div>
+    </div>
+
+    <div class="issue">
+      <div class="issue-head"><span class="issue-tag tag-warn">Warn</span><span>PRD 未实现项</span></div>
+      <div class="issue-title">认知指纹、教练记忆、暴露历史快照——PRD 写了，代码没有</div>
+      <div class="issue-body">
+        <code>CognitiveProfile</code> 接口有 <code>coachMemory.keyInsights: string[]</code>，但 <code>profileManager</code> 从未写入这个字段。<code>"认知指纹"</code>在 PRD 2.2 节列为数据资产，但代码里完全不存在。<code>"暴露历史"</code>PRD 说"每次阅读后更新"，但只更新当前值，不存历史快照——<code>GrowthPage</code> 的成长曲线只能从 <code>impactHistory</code> 派生，无法展示"30 天前我的暴露值是多少"。
+      </div>
+      <div class="issue-fix">要么实现，要么从 PRD 删除。不要让文档和代码说两套话。</div>
+    </div>
+  </section>
+
+  <!-- ============ 05 模型架构 ============ -->
+  <section id="s5">
+    <div class="sec-head">
+      <span class="sec-num">05</span>
+      <div>
+        <div class="sec-kicker">Model · 模型架构</div>
+        <h2 class="sec-title">Prompt 不是工程</h2>
+      </div>
+    </div>
+
+    <p class="lead">DeepSeek 在系统中扮演"认知成长教练"，但当前的"教练方法论"完全依赖 prompt 自然语言描述，没有任何结构化约束。这意味着方法论是否生效，完全取决于 LLM 当次生成的随机性。</p>
+
+    <div class="issue critical">
+      <div class="issue-head"><span class="issue-tag tag-critical">Critical</span><span>方法论无约束</span></div>
+      <div class="issue-title">"苏格拉底式追问"只是 prompt 里的一句话，LLM 可以完全不遵守</div>
+      <div class="issue-body">
+        <code>coach.ts</code> 的 system prompt 写了"1. 苏格拉底式追问：不直接给答案"，但没有任何机制验证 LLM 是否真的追问了。DeepSeek 完全可能直接给出百科式答案——因为没有结构化约束。当前的"方法论"是建议，不是规则。
+      </div>
+      <div class="issue-fix">1) 输出结构化：要求 LLM 返回 <code>{ method: "socratic" | "analogy" | "counterfactual", content: string }</code>，前端按 method 渲染不同样式；2) 后置校验：检查回复是否以问号结尾（苏格拉底式）、是否包含类比关键词（类比桥接）；3) 失败重试：不符合方法论约束时重新生成。</div>
+    </div>
+
+    <div class="issue">
+      <div class="issue-head"><span class="issue-tag tag-warn">Warn</span><span>长期记忆=全量塞入</span></div>
+      <div class="issue-title">把整个 profile 塞进 system prompt，不是"记忆"，是"上下文"</div>
+      <div class="issue-body">
+        <code>buildCoachContext()</code> 把高频领域、盲区、已爆破、难度、周数、累计阅读、最近自评全部拼成字符串塞进 system prompt。这不是"长期记忆"，是"每次对话都重复一遍背景"。<code>coachMemory.keyInsights</code> 字段存在但从未写入——真正的"记忆"（教练记住用户说过的关键洞察）没有实现。
+      </div>
+      <div class="issue-fix">1) 实现 <code>keyInsights</code>：每次对话后，让 DeepSeek 提取 1 个关键洞察存入 profile；2) 下次对话只注入最近 3 条 <code>keyInsights</code>，不是全量 profile；3) 控制 token 预算。</div>
+    </div>
+
+    <div class="issue">
+      <div class="issue-head"><span class="issue-tag tag-warn">Warn</span><span>无流式响应</span></div>
+      <div class="issue-title">用户等待 3-8 秒才看到完整回复，体验差</div>
+      <div class="issue-body">
+        <code>chatCompletion()</code> 用 <code>stream: false</code>，等 DeepSeek 生成完整回复才返回。教练对话场景下，用户盯着"教练正在思考..."8 秒，体验不佳。DeepSeek 支持 SSE 流式，但未使用。
+      </div>
+      <div class="issue-fix"><code>/coach</code> 和 <code>/diagnose</code> 改为 SSE 流式，前端逐字渲染（<code>DiagScanPage</code> 已有 Typewriter 组件可复用）。</div>
+    </div>
+
+    <div class="issue">
+      <div class="issue-head"><span class="issue-tag tag-info">Info</span><span>上下文截断</span></div>
+      <div class="issue-title">diagnoseConversation 只传最后 10 条消息，早期对话丢失</div>
+      <div class="issue-body">
+        <code>llm.ts</code> 第 89 行 <code>messages.slice(-10)</code>。如果诊断对话超过 10 轮（用户话多），最早的用户回答会被截断，导致最终 <code>analyze()</code> 拿到的汇总输入不完整。虽然当前固定 4 轮，但硬编码截断是隐患。
+      </div>
+      <div class="issue-fix">不按条数截断，按 token 数截断（<code>tiktoken</code> 估算），优先保留首轮和最近轮。</div>
+    </div>
+  </section>
+
+  <!-- ============ 06 护城河真相 ============ -->
+  <section id="s6">
+    <div class="sec-head">
+      <span class="sec-num">06</span>
+      <div>
+        <div class="sec-kicker">Moat · 护城河真相</div>
+        <h2 class="sec-title">四层逐一拆解</h2>
+      </div>
+    </div>
+
+    <p class="lead">PRD v4.0 宣称四层护城河。现在诚实地评估：每一层的"护城河"成色如何？是真正的壁垒，还是营销话术？</p>
+
+    <table>
+      <thead>
+        <tr><th>护城河</th><th>PRD 声称</th><th>实际成色</th><th>可复制性</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><b>① 认知数据资产</b></td>
+          <td>用户用得越久，档案越完整，迁移成本越高</td>
+          <td><span style="color:var(--critical)">弱</span> — localStorage 易失，无导出，无云端，清缓存即归零</td>
+          <td>任何竞品都能做 localStorage，无壁垒</td>
+        </tr>
+        <tr>
+          <td><b>② 反推荐算法</b></td>
+          <td>三维决策引擎，认知冲击度预测</td>
+          <td><span style="color:var(--critical)">弱</span> — 5×5 硬编码矩阵 + 加权求和，10 分钟可复制</td>
+          <td>完全可复制，无技术壁垒</td>
+        </tr>
+        <tr>
+          <td><b>③ 交互深度</b></td>
+          <td>诊断扫描 + 仪式挑战 + 闭环反馈 + 成长可视化</td>
+          <td><span style="color:var(--accent)">中</span> — 流程完整，但任何团队 2 周可复刻</td>
+          <td>体验层护城河最浅，靠执行速度</td>
+        </tr>
+        <tr>
+          <td><b>④ 教练角色</b></td>
+          <td>有方法论的专家，不是通用助手</td>
+          <td><span style="color:var(--accent)">中</span> — prompt 可复制，但"品牌认知"需要时间建立</td>
+          <td>prompt 1 秒复制，品牌无法复制</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="pullquote">
+      <span class="cn">当前的四层护城河，三层是"功能描述"不是"壁垒"。真正的护城河必须是"竞品知道了也做不到"的事——不是 prompt，不是矩阵，是<b>数据网络效应</b>或<b>用户迁移成本</b>。</span>
+    </div>
+
+    <div class="issue ok">
+      <div class="issue-head"><span class="issue-tag tag-ok">Path</span><span>真正的护城河方向</span></div>
+      <div class="issue-title">从"功能护城河"转向"数据护城河"</div>
+      <div class="issue-body">
+        当前架构是单机的，用户数据互不相通。真正的护城河在于：<b>群体认知数据</b>。当系统知道"1000 个娱乐高频用户中，68% 在接触叙事学后冲击自评 ≥4 星"，这个群体统计模型是任何新竞品无法获得的——他们没有用户数据。这才是"竞品知道了也做不到"的事。
+      </div>
+      <div class="issue-fix">1) 后端持久化用户数据（匿名）；2) 聚合"维度 × 高频领域 × 冲击分"统计模型；3) 用群体数据反哺个人推荐（"和你类似的人，从天文学获得了 5 星冲击"）。这才是数据护城河。</div>
+    </div>
+  </section>
+
+  <!-- ============ 07 重构方向 ============ -->
+  <section id="s7">
+    <div class="sec-head">
+      <span class="sec-num">07</span>
+      <div>
+        <div class="sec-kicker">Refactor · 重构方向</div>
+        <h2 class="sec-title">从伪到真的路径</h2>
+      </div>
+    </div>
+
+    <p class="lead">不是推倒重来，是分层做实。当前 v4.0 的骨架是对的（7 阶段 Pipeline、6 页面、教练角色），但每一层都需要从"看起来像"变成"真的是"。</p>
+
+    <div class="diagram">
+      <div class="diagram-label">重构优先级（P0 → P2）</div>
+<pre>
+<span style="color:var(--critical)">P0 — 必须做（否则产品不可用）</span>
+ ├── 删除 5 个死代码文件
+ ├── 添加 ErrorBoundary
+ ├── 添加 profileVersion + schema 迁移
+ ├── impactHistory 上限 100 条 + 聚合
+ └── DeepSeek 调用添加缓存（前端 localStorage）
+
+<span style="color:var(--accent)">P1 — 应该做（否则护城河是假的）</span>
+ ├── 实现认知指纹（profile 派生 + 可分享）
+ ├── 实现数据导出/导入
+ ├── 教练方法论结构化（输出 method 字段 + 后置校验）
+ ├── 真正的 DeepSeek 评估认知距离（替换 5×5 矩阵）
+ └── SSE 流式响应（/coach + /diagnose）
+
+<span style="color:var(--muted)">P2 — 可以做（长期价值）</span>
+ ├── 后端持久化（Supabase 匿名账号）
+ ├── 群体认知统计模型（数据网络效应）
+ ├── keyInsights 教练记忆
+ ├── 暴露历史快照（独立存储，非派生）
+ └── 请求校验（zod） + 速率限制
+</pre>
+    </div>
+
+    <div class="issue">
+      <div class="issue-head"><span class="issue-tag tag-info">Decision</span><span>架构决策点</span></div>
+      <div class="issue-title">三个需要先回答的问题，再写代码</div>
+      <div class="issue-body">
+        <b>1. 算法层</b>：承认"三维决策引擎"是规则引擎（PRD 改写），还是投入做成真正的 DeepSeek 评估？<br>
+        <b>2. 数据层</b>：MVP 阶段是否引入后端持久化？如果护城河是数据资产，localStorage 不够。<br>
+        <b>3. 护城河层</b>：是否转向"群体数据网络效应"路线？这需要后端 + 用户量，不是前端能解决的。
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 08 遗留清单 ============ -->
+  <section id="s8">
+    <div class="sec-head">
+      <span class="sec-num">08</span>
+      <div>
+        <div class="sec-kicker">Checklist · 遗留清单</div>
+        <h2 class="sec-title">待删 / 待改 / 待建</h2>
+      </div>
+    </div>
+
+    <p class="lead">以下清单基于代码实际状态，非 PRD 描述。勾选状态反映"是否已实现且可用"。</p>
+
+    <h3 style="font-family:'Noto Serif SC',serif; font-size:18px; margin: 24px 0 12px; color: var(--critical);">待删除（死代码）</h3>
+    <ul class="checklist">
+      <li class="done">src/pages/Home.tsx — 空组件，无引用</li>
+      <li class="done">src/components/Empty.tsx — 占位组件，无引用</li>
+      <li class="done">src/data/mockData.ts — import 不存在的 shared/types</li>
+      <li class="done">src/hooks/useTheme.ts — 应用硬编码暗色，无明暗切换</li>
+      <li class="done">api/data/cognitiveDimensions.json — schema 与 domains.ts 冲突</li>
+    </ul>
+
+    <h3 style="font-family:'Noto Serif SC',serif; font-size:18px; margin: 32px 0 12px; color: var(--accent);">待修改（设计债）</h3>
+    <ul class="checklist">
+      <li>App.tsx 添加 ErrorBoundary</li>
+      <li>profileManager 添加 profileVersion + schema 迁移</li>
+      <li>profileManager.impactHistory 上限 100 条 + 聚合统计</li>
+      <li>profileManager 添加 exportProfile / importProfile</li>
+      <li>apiClient 按端点裁剪传输数据（不全量传 profile）</li>
+      <li>recommender.ts — 要么诚实改 PRD，要么真用 DeepSeek 评估</li>
+      <li>coach.ts — 教练方法论结构化输出（method 字段）</li>
+      <li>llm.ts — /coach 和 /diagnose 改 SSE 流式</li>
+      <li>agent.ts — /map 和 /growth 改 GET 或加 Cache-Control</li>
+      <li>agent.ts — 引入 zod 请求校验</li>
+      <li>agent.ts — 引入 express-rate-limit</li>
+      <li>App.tsx — 封装 ProtectedRoute 组件</li>
+    </ul>
+
+    <h3 style="font-family:'Noto Serif SC',serif; font-size:18px; margin: 32px 0 12px; color: var(--ok);">待新建（PRD 承诺但未实现）</h3>
+    <ul class="checklist">
+      <li>认知指纹（CognitiveFingerprint）— profile 派生 + 可分享</li>
+      <li>教练记忆 keyInsights — 每次对话提取洞察存入 profile</li>
+      <li>暴露历史快照 — 独立存储，非从 impactHistory 派生</li>
+      <li>DeepSeek 调用缓存层（前端 localStorage）</li>
+      <li>后端持久化方案（Supabase 匿名账号）</li>
+      <li>群体认知统计模型（数据网络效应护城河）</li>
+    </ul>
+  </section>
+
+  <!-- ============ 页脚 ============ -->
+  <footer>
+    <p class="colophon">
+      茧房爆破器 · 架构审视 v4.0.1<br>
+      不赞美，只审视。不部署，只梳理。<br>
+      — 一份给未来自己的诚实记录 —
+    </p>
+  </footer>
+
+</div>
+
+</body>
+</html>

@@ -19,7 +19,7 @@ export async function chatWithCoach(
   userMessage: string,
   chatHistory: Array<{ role: string; content: string }>,
   profile: CoachProfile
-): Promise<string> {
+): Promise<{ method: string; content: string }> {
   const context = buildCoachContext(profile);
 
   const systemPrompt = `你是「茧房爆破器」用户的认知成长教练。
@@ -42,7 +42,17 @@ ${context}
 - 永远不要迎合用户已有偏好，你的目标是扩展边界
 - 回答简洁有力，不超过200字
 - 语气像一位见多识广的朋友，不是老师，不是百科
-- 如果用户问推荐什么，根据盲区领域引导，不要直接给答案`;
+- 如果用户问推荐什么，根据盲区领域引导，不要直接给答案
+
+【重要】回复格式要求：
+- 必须在回复的最开头用以下四个标签之一标注本次回复使用的方法论：
+  - [socratic] 表示使用了苏格拉底式追问
+  - [analogy] 表示使用了类比桥接
+  - [counterfactual] 表示使用了反事实推演
+  - [memory] 表示使用了长期记忆回顾
+- 标签之后直接跟回复正文，标签与正文之间不要换行，不要加冒号或其它分隔符
+- 示例：[socratic]你觉得为什么两个粒子能瞬间相互影响？
+- 每次回复必须选择最契合本次回复的方法论标签，且只能使用一个标签`;
 
   const messages: ChatMessage[] = [
     { role: "system", content: systemPrompt },
@@ -54,7 +64,18 @@ ${context}
   ];
 
   const res = await chatCompletion(messages, { temperature: 0.7, maxTokens: 300 });
-  return res.content.trim();
+  const raw = res.content.trim();
+
+  // 解析开头的 [标签]，识别本次回复使用的方法论
+  const tagMatch = raw.match(/^\[(socratic|analogy|counterfactual|memory)\]\s*([\s\S]*)$/i);
+  if (tagMatch) {
+    const method = tagMatch[1].toLowerCase();
+    const content = tagMatch[2].trim();
+    return { method, content };
+  }
+
+  // LLM 未加标签时，默认 method 为 general，保留全部正文
+  return { method: "general", content: raw };
 }
 
 /** 从暴露数据构建 CoachProfile */
