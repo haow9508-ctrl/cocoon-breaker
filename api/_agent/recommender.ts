@@ -4,6 +4,7 @@
 
 import { COGNITIVE_DIMENSIONS, getDimensionById } from "../_knowledge/domains.js";
 import { generateChallenge, ChallengeContent, evaluateCognitiveDistances } from "./llm.js";
+import { retrieveFromRag } from "./ragClient.js";
 import type { DifficultyLevel } from "./analyzer.js";
 
 export interface ImpactRecord {
@@ -44,6 +45,8 @@ export interface ChallengeItem {
   difficultyLevel: DifficultyLevel;
   coachGuidance: string;
   exposureCount: number;
+  sourceType?: "arxiv" | "wikipedia" | "deepseek_fallback"; // 抗 GEO 透明度
+  sourceUrl?: string; // 真实链接（RAG 检索时提供）
 }
 
 export interface ChallengeResult {
@@ -200,11 +203,42 @@ export async function generateDailyChallenge(
     return { items: [], blindSpotCount: 0, selectedDimensions: [] };
   }
 
-  // ④ 生成：调用 DeepSeek 生成挑战内容
+  // ④a RAG 检索：为每个盲区维度从 arXiv/Wikipedia 检索真实内容（抗 GEO）
+  const ragResultsByDim = new Map<string, Array<{
+    title: string;
+    description: string;
+    source: string;
+    sourceType: string;
+    url: string;
+    readTimeMinutes: number;
+  }>>();
+
+  await Promise.all(selectedDims.map(async (dim) => {
+    const query = `${dim.name} 认知盲区 ${input.highExposureFields.slice(0, 2).join(" ")}`.trim();
+    const results = await retrieveFromRag({
+      query,
+      highExposureFields: input.highExposureFields,
+      dimensionId: dim.id,
+      limit: 3,
+    });
+    if (results.length > 0) {
+      ragResultsByDim.set(dim.id, results.map(r => ({
+        title: r.title,
+        description: r.description,
+        source: r.source,
+        sourceType: r.source_type,
+        url: r.url,
+        readTimeMinutes: r.read_time_minutes,
+      })));
+    }
+  }));
+
+  // ④b 生成：基于 RAG 真实内容生成挑战（DeepSeek 只做教练引导）
   const challenges: ChallengeContent[] = await generateChallenge(
     selectedDims,
     input.highExposureFields,
-    input.difficultyLevel
+    input.difficultyLevel,
+    ragResultsByDim
   );
 
   const items: ChallengeItem[] = challenges.map((c, idx) => ({
@@ -219,6 +253,8 @@ export async function generateDailyChallenge(
     difficultyLevel: c.difficultyLevel,
     coachGuidance: c.coachGuidance,
     exposureCount: input.exposure.get(c.dimensionId) ?? 0,
+    sourceType: c.sourceType,
+    sourceUrl: c.sourceUrl,
   }));
 
   const blindSpotCount = COGNITIVE_DIMENSIONS.filter(
@@ -232,7 +268,7 @@ export async function generateDailyChallenge(
   };
 }
 
-/** 内容详情：由 DeepSeek 为单个维度动态生成 */
+/** 内容详情：由 DeepSeek 为单个维度动态生成（基于 RAG 真实内容） */
 export async function getChallengeDetail(
   dimensionId: string,
   exposure: Map<string, number>,
@@ -245,10 +281,39 @@ export async function getChallengeDetail(
     .filter((d) => (exposure.get(d.id) ?? d.count) >= 200)
     .map((d) => d.name);
 
+  // RAG 检索真实内容（抗 GEO）
+  const ragResultsByDim = new Map<string, Array<{
+    title: string;
+    description: string;
+    source: string;
+    sourceType: string;
+    url: string;
+    readTimeMinutes: number;
+  }>>();
+
+  const query = `${dim.name} 认知盲区 ${highExposureNames.slice(0, 2).join(" ")}`.trim();
+  const results = await retrieveFromRag({
+    query,
+    highExposureFields: highExposureNames,
+    dimensionId,
+    limit: 3,
+  });
+  if (results.length > 0) {
+    ragResultsByDim.set(dimensionId, results.map(r => ({
+      title: r.title,
+      description: r.description,
+      source: r.source,
+      sourceType: r.source_type,
+      url: r.url,
+      readTimeMinutes: r.read_time_minutes,
+    })));
+  }
+
   const challenges = await generateChallenge(
     [{ id: dimensionId, name: dim.name, exposureCount: exposure.get(dimensionId) ?? dim.count }],
     highExposureNames,
-    difficultyLevel
+    difficultyLevel,
+    ragResultsByDim
   );
 
   if (challenges.length === 0) return undefined;
@@ -266,5 +331,7 @@ export async function getChallengeDetail(
     difficultyLevel,
     coachGuidance: c.coachGuidance,
     exposureCount: exposure.get(dimensionId) ?? dim.count,
+    sourceType: c.sourceType,
+    sourceUrl: c.sourceUrl,
   };
 }

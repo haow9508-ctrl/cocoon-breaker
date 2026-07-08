@@ -26,3 +26,10 @@ dist-ssr
 .vercel
 .env
 .env.local
+
+# Python / RAG backend
+.venv
+venv
+__pycache__/
+*.py[cod]
+backend/models/

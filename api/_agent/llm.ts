@@ -3,8 +3,12 @@
 // DeepSeek 在所有阶段都扮演"认知成长教练"角色
 
 const DEEPSEEK_BASE = "https://api.deepseek.com/v1";
-const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY || "";
 const MODEL = "deepseek-chat";
+
+// 运行时读取，避免 ESM 模块加载顺序导致 dotenv 未及时注入
+function getApiKey(): string {
+  return process.env.DEEPSEEK_API_KEY || "";
+}
 
 export interface ChatMessage {
   role: "system" | "user" | "assistant";
@@ -18,7 +22,7 @@ export interface LLMResponse {
 
 /** 检查 API Key 是否配置 */
 export function isApiKeyConfigured(): boolean {
-  return !!DEEPSEEK_API_KEY;
+  return !!getApiKey();
 }
 
 /** 通用 DeepSeek 调用函数 */
@@ -26,7 +30,8 @@ export async function chatCompletion(
   messages: ChatMessage[],
   options?: { temperature?: number; maxTokens?: number }
 ): Promise<LLMResponse> {
-  if (!DEEPSEEK_API_KEY) {
+  const apiKey = getApiKey();
+  if (!apiKey) {
     throw new Error("DEEPSEEK_API_KEY not configured");
   }
 
@@ -34,7 +39,7 @@ export async function chatCompletion(
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${DEEPSEEK_API_KEY}`,
+      Authorization: `Bearer ${apiKey}`,
     },
     body: JSON.stringify({
       model: MODEL,
@@ -97,13 +102,14 @@ export async function diagnoseConversation(
   messages: Array<{ role: string; content: string }>,
   nickname: string
 ): Promise<string> {
-  const systemPrompt = `你是「茧房爆破器」用户的认知成长教练。现在正在进行诊断式扫描，通过 3-5 轮对话了解用户的内容消费习惯。
+  const systemPrompt = `你是「茧房爆破器」用户的认知成长教练。现在正在进行诊断式扫描，通过多轮对话了解用户的内容消费习惯。
 
 你的问诊方法论：
 1. 从轻松的话题开始，让用户放松
 2. 逐步深入，了解用户日常看什么、听什么、关注什么
 3. 注意挖掘用户自己都没意识到的"认知舒适区"
-4. 最后一轮，总结你观察到的用户认知画像
+4. 不追求固定轮数——苏格拉底式引导需要灵活深度，直到你认为已收集足够信息
+5. 当你观察到用户的认知画像清晰时，可在回复末尾加一句简短总结
 
 规则：
 - 每次只问一个问题，不要一次问多个
@@ -111,8 +117,9 @@ export async function diagnoseConversation(
 - 永远不要说"作为一个AI"
 - 每轮回复不超过80字
 - 用户昵称：${nickname}
+- 对话轮数灵活——用户可在任意时刻主动结束并生成档案
 
-${messages.length < 2 ? "这是第一轮对话，请用轻松的方式开场，问一个关于用户日常内容消费习惯的问题。" : "继续问诊，根据用户上一个回答深入挖掘。"}`;
+${messages.length < 2 ? "这是第一轮对话，请用轻松的方式开场，问一个关于用户日常内容消费习惯的问题。" : "继续问诊，根据用户上一个回答深入挖掘。注意：不要为了收尾而收尾，只有在你真的认为已经了解用户习惯后才总结。"}`;
 
   const chatMessages: ChatMessage[] = [
     { role: "system", content: systemPrompt },
@@ -175,13 +182,27 @@ export interface ChallengeContent {
   readTimeMinutes: number;
   difficultyLevel: "L1" | "L2" | "L3";
   coachGuidance: string; // 教练引导语（类比桥接）
+  sourceType?: "arxiv" | "wikipedia" | "deepseek_fallback"; // 内容来源（抗 GEO 透明度）
+  sourceUrl?: string; // 真实链接（RAG 检索时提供）
 }
 
-/** ④ 生成：根据盲区维度+高频领域+难度，由 DeepSeek 生成挑战内容 */
+/**
+ * ④ 生成：根据盲区维度+高频领域+难度，生成挑战内容
+ * v4.2：优先基于 RAG 检索的真实内容生成（抗 GEO），DeepSeek 只做教练引导
+ *       RAG 无结果时 fallback 到纯 DeepSeek 生成
+ */
 export async function generateChallenge(
   blindSpots: Array<{ id: string; name: string; exposureCount: number }>,
   highExposureNames: string[],
-  difficultyLevel: "L1" | "L2" | "L3"
+  difficultyLevel: "L1" | "L2" | "L3",
+  ragResultsByDim?: Map<string, Array<{
+    title: string;
+    description: string;
+    source: string;
+    sourceType: string;
+    url: string;
+    readTimeMinutes: number;
+  }>>
 ): Promise<ChallengeContent[]> {
   const blindSpotDesc = blindSpots.map(b => `${b.id}(${b.name}, 暴露值:${b.exposureCount})`).join("、");
   const highDesc = highExposureNames.join("、") || "暂无明显高频领域";
@@ -191,6 +212,21 @@ export async function generateChallenge(
     L2: "L2中距盲区：内容应与用户高频领域有一定距离，需要一些认知跨越。",
     L3: "L3远端盲区：内容应与用户高频领域距离最远，最大化认知冲击。",
   }[difficultyLevel];
+
+  // 构造 RAG context（如果有）
+  let ragContext = "";
+  const hasRag = ragResultsByDim && ragResultsByDim.size > 0;
+  if (hasRag) {
+    const ragParts: string[] = [];
+    for (const [dimId, results] of ragResultsByDim!.entries()) {
+      if (results.length === 0) continue;
+      const docs = results.slice(0, 2).map((r, i) =>
+        `  ${i + 1}. 标题：${r.title}\n     来源：${r.source} (${r.sourceType})\n     摘要：${r.description.slice(0, 300)}\n     链接：${r.url}`
+      ).join("\n");
+      ragParts.push(`维度 ${dimId} 的真实检索内容：\n${docs}`);
+    }
+    ragContext = `\n\n=== RAG 检索到的真实内容（来自 arXiv/Wikipedia，抗 GEO）===\n${ragParts.join("\n\n")}\n\n重要：请基于以上真实内容生成，标题和来源必须用检索到的真实内容。DeepSeek 只做：1) why 推荐理由；2) coachGuidance 类比引导；3) description 内容重组（保留事实，不要编造）。`;
+  }
 
   const messages: ChatMessage[] = [
     {
@@ -205,12 +241,12 @@ ${difficultyHint}
 3. 来源标注真实（维基百科/学术论文/经典著作/科学期刊）
 4. 阅读时间5-10分钟
 5. coachGuidance：用用户的高频领域做类比桥接，一句话引导用户进入内容
-6. 推荐理由(why)：一句话说明为什么这条内容能打破用户的茧房
+6. 推荐理由(why)：一句话说明为什么这条内容能打破用户的茧房${hasRag ? "\n7. 【重要】已提供 RAG 检索的真实内容，必须基于这些内容生成，不要凭空编造标题和来源" : ""}
 
 ${ANTI_GEO_DIRECTIVE}
 
 输出格式：纯 JSON 数组，每个对象包含：
-- dimensionId, dimensionName, title, why, description, source, readTimeMinutes, coachGuidance
+- dimensionId, dimensionName, title, why, description, source, readTimeMinutes, coachGuidance${hasRag ? ", sourceUrl" : ""}
 
 只输出 JSON 数组。`,
     },
@@ -220,7 +256,7 @@ ${ANTI_GEO_DIRECTIVE}
 ${blindSpotDesc}
 
 用户的高频领域（用于类比桥接和认知冲击）：
-${highDesc}
+${highDesc}${ragContext}
 
 请为这 ${blindSpots.length} 个盲区维度各生成一篇内容，输出 JSON 数组：`,
     },
@@ -241,6 +277,8 @@ ${highDesc}
         readTimeMinutes: item.readTimeMinutes || 5,
         difficultyLevel,
         coachGuidance: item.coachGuidance || "",
+        sourceType: hasRag ? (item.sourceUrl ? "arxiv" : "deepseek_fallback") : "deepseek_fallback",
+        sourceUrl: item.sourceUrl || "",
       }));
     }
   }

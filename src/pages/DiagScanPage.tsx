@@ -17,8 +17,9 @@ interface Msg {
 
 type Stage = "nickname" | "chat" | "analyzing";
 
-// 对话总轮数（用户回答次数）
-const TOTAL_ROUNDS = 4;
+// 最低对话轮数：达到后允许生成档案，但用户可继续对话
+// 认知盲区无法用固定轮数覆盖——苏格拉底式引导需要灵活深度
+const MIN_ROUNDS = 3;
 
 // 打字机效果组件
 function Typewriter({ text, onDone }: { text: string; onDone?: () => void }) {
@@ -125,9 +126,9 @@ export function DiagScanPage() {
     }
   };
 
-  // 判断是否已达到最后一轮
+  // 判断是否已达到最低轮数（达到后可生成档案，但对话不强制结束）
   const userTurnCount = messages.filter((m) => m.role === "user").length;
-  const isLastRound = userTurnCount >= TOTAL_ROUNDS;
+  const canFinish = userTurnCount >= MIN_ROUNDS;
 
   // 进入分析阶段
   const enterAnalyzing = async () => {
@@ -229,7 +230,7 @@ export function DiagScanPage() {
                   )}
                 </button>
                 <p className="mt-4 text-center text-[11px] leading-relaxed text-white/30">
-                  约 4 轮对话 · 数据仅存于你的浏览器
+                  至少 3 轮对话 · 随时生成档案 · 数据仅存于你的浏览器
                 </p>
               </div>
               {error && (
@@ -249,17 +250,17 @@ export function DiagScanPage() {
               exit={{ opacity: 0 }}
               className="flex flex-1 flex-col"
             >
-              {/* 进度指示 */}
-              <div className="mb-4 flex items-center justify-center gap-1.5">
-                {Array.from({ length: TOTAL_ROUNDS }).map((_, i) => (
-                  <span
-                    key={i}
-                    className={cn(
-                      "h-1 rounded-full transition-all duration-300",
-                      i < userTurnCount ? "w-6 bg-white/80" : "w-2 bg-white/15"
-                    )}
-                  />
-                ))}
+              {/* 进度指示：显示已对话轮数 + 最低轮数提示 */}
+              <div className="mb-4 flex items-center justify-center gap-2 text-[11px] text-white/40">
+                <span>已对话 {userTurnCount} 轮</span>
+                <span className="text-white/20">·</span>
+                <span>
+                  {canFinish ? (
+                    <span className="text-emerald-300/80">可以生成档案，或继续深入</span>
+                  ) : (
+                    <span>至少 {MIN_ROUNDS} 轮以生成档案</span>
+                  )}
+                </span>
               </div>
 
               {/* 消息区 */}
@@ -326,8 +327,8 @@ export function DiagScanPage() {
                 )}
               </div>
 
-              {/* 最后一轮：进入分析 */}
-              {isLastRound && !loading && typedIndex >= messages.length - 1 && (
+              {/* 达到最低轮数后：可生成档案（仍可继续对话） */}
+              {canFinish && !loading && typedIndex >= messages.length - 1 && (
                 <motion.div
                   initial={{ opacity: 0, y: 8 }}
                   animate={{ opacity: 1, y: 0 }}
@@ -343,30 +344,28 @@ export function DiagScanPage() {
                 </motion.div>
               )}
 
-              {/* 输入区 */}
-              {!isLastRound && (
-                <div className="mt-4 flex items-end gap-2">
-                  <input
-                    ref={inputRef}
-                    value={input}
-                    onChange={(e) => setInput(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") handleSend();
-                    }}
-                    placeholder={typing ? "教练正在说话…" : "写下你的回答"}
-                    disabled={loading || typing}
-                    className="flex-1 rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-[14px] text-white placeholder-white/25 outline-none transition focus:border-white/30 disabled:opacity-50"
-                  />
-                  <button
-                    onClick={handleSend}
-                    disabled={!input.trim() || loading || typing}
-                    className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-white text-black transition hover:bg-white/90 disabled:opacity-30"
-                    aria-label="发送"
-                  >
-                    <ArrowRight className="h-5 w-5" />
-                  </button>
-                </div>
-              )}
+              {/* 输入区：始终可用，用户可自由继续对话 */}
+              <div className="mt-4 flex items-end gap-2">
+                <input
+                  ref={inputRef}
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") handleSend();
+                  }}
+                  placeholder={typing ? "教练正在说话…" : "写下你的回答"}
+                  disabled={loading || typing}
+                  className="flex-1 rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-[14px] text-white placeholder-white/25 outline-none transition focus:border-white/30 disabled:opacity-50"
+                />
+                <button
+                  onClick={handleSend}
+                  disabled={!input.trim() || loading || typing}
+                  className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-white text-black transition hover:bg-white/90 disabled:opacity-30"
+                  aria-label="发送"
+                >
+                  <ArrowRight className="h-5 w-5" />
+                </button>
+              </div>
 
               {error && (
                 <p className="mt-3 rounded-lg border border-red-500/20 bg-red-500/10 p-3 text-center text-xs text-red-300">
