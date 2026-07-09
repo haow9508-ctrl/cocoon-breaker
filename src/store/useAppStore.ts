@@ -1,4 +1,5 @@
-// ===== 状态管理 v4.0 =====
+// ===== 状态管理 v6.0 =====
+// v6.0：profile 类型从含 exposure Map 改为含 directions 数组
 import { create } from "zustand";
 import { profileManager, type CognitiveProfile } from "../lib/profileManager";
 

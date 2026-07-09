@@ -6,7 +6,7 @@ import { DiagScanPage } from "./pages/DiagScanPage";
 import { ChallengePage } from "./pages/ChallengePage";
 import { GrowthPage } from "./pages/GrowthPage";
 import { MilestonePage } from "./pages/MilestonePage";
-import { HeatmapPage } from "./pages/HeatmapPage";
+import { DirectionTreePage } from "./pages/DirectionTreePage";
 import { ReaderPage } from "./pages/ReaderPage";
 import { CoachChat } from "./components/CoachChat";
 import { NavBar } from "./components/NavBar";
@@ -105,8 +105,9 @@ function App() {
             <Route path="/" element={<ProtectedRoute><ChallengePage /></ProtectedRoute>} />
             <Route path="/growth" element={<ProtectedRoute><GrowthPage /></ProtectedRoute>} />
             <Route path="/milestones" element={<ProtectedRoute><MilestonePage /></ProtectedRoute>} />
-            <Route path="/heatmap" element={<ProtectedRoute><HeatmapPage /></ProtectedRoute>} />
-            <Route path="/read/:id" element={<ProtectedRoute><ReaderPage /></ProtectedRoute>} />
+            <Route path="/directions" element={<ProtectedRoute><DirectionTreePage /></ProtectedRoute>} />
+            {/* v6.0：阅读路由参数改为 directionId + subfieldId（替代旧的 :id） */}
+            <Route path="/read/:directionId/:subfieldId" element={<ProtectedRoute><ReaderPage /></ProtectedRoute>} />
             <Route path="*" element={<Navigate to={hasProfile ? "/" : "/scan"} />} />
           </Routes>
           {hasProfile && <CoachChat />}

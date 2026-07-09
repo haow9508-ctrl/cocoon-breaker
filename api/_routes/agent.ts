@@ -1,18 +1,19 @@
-// ===== Agent API v4.0 — 认知成长教练 7 阶段 Pipeline =====
+// ===== Agent API v6.0 — 认知成长教练 7 阶段 Pipeline =====
 // 无状态：所有数据存在前端 localStorage，每次请求带上完整档案
-// 无知识库：所有内容由 DeepSeek 动态生成
+// v6.0：从"24 维暴露扫描"改为"认知大方向 + 方向内子领域树"动态模型
+// 核心逻辑：服务持续提升认知的人，在既定方向内（如 AIPM/Python/古诗/股市）拓展视野
 
 import { Router, Request, Response } from "express";
-import { analyzeExposure } from "../_agent/analyzer.js";
+import { analyzeDirections } from "../_agent/analyzer.js";
 import { generateDailyChallenge, getChallengeDetail, ImpactRecord, DecisionInput } from "../_agent/recommender.js";
-import { COGNITIVE_DIMENSIONS } from "../_knowledge/domains.js";
 import { diagnoseConversation, isApiKeyConfigured, coachFeedback, buildCoachContext, extractKeyInsight } from "../_agent/llm.js";
-import { chatWithCoach, buildProfileFromExposure } from "../_agent/coach.js";
+import { chatWithCoach, buildProfileFromDirections } from "../_agent/coach.js";
 import { adjustDifficulty, checkMilestones } from "../_agent/assessor.js";
+import type { CognitiveDirection } from "../_knowledge/domains.js";
 
 const router = Router();
 
-// ① 诊断：多轮对话式扫描
+// ① 诊断：识别用户的 1-3 个认知大方向（多轮对话式）
 router.post("/diagnose", async (req: Request, res: Response) => {
   const { nickname, messages } = req.body;
   try {
@@ -28,7 +29,7 @@ router.post("/diagnose", async (req: Request, res: Response) => {
   }
 });
 
-// ② 分析：生成24维暴露值 + 初始难度等级
+// ② 分析：识别认知大方向 + 方向内子领域树 + 初始难度等级
 router.post("/analyze", async (req: Request, res: Response) => {
   const { input } = req.body;
   try {
@@ -36,20 +37,13 @@ router.post("/analyze", async (req: Request, res: Response) => {
       res.status(500).json({ success: false, error: "DEEPSEEK_API_KEY not configured" });
       return;
     }
-    const result = await analyzeExposure(input || "");
-    const map = COGNITIVE_DIMENSIONS.map((d) => ({
-      ...d,
-      userCount: result.exposure.get(d.id) ?? d.count,
-      isBlindSpot: (result.exposure.get(d.id) ?? d.count) < 30,
-    }));
+    const result = await analyzeDirections(input || "");
     res.json({
       success: true,
       data: {
-        exposure: Object.fromEntries(result.exposure),
-        highExposureFields: result.highExposureFields,
-        blindSpotFields: result.blindSpotFields,
+        // v6.0：返回方向树（替代旧的 exposure Map + highExposureFields + blindSpotFields）
+        directions: result.directions,
         difficultyLevel: result.initialDifficulty,
-        map,
       },
     });
   } catch (err: any) {
@@ -58,25 +52,20 @@ router.post("/analyze", async (req: Request, res: Response) => {
   }
 });
 
-// ③④ 每日挑战：三维决策 + DeepSeek 生成
+// ③④ 每日挑战：方向内拓展决策 + DeepSeek 生成
 router.post("/challenge", async (req: Request, res: Response) => {
-  const { exposure, readHistory, impactHistory, difficultyLevel, highExposureFields } = req.body;
+  const { directions, readHistory, impactHistory, difficultyLevel } = req.body;
   try {
     if (!isApiKeyConfigured()) {
       res.status(500).json({ success: false, error: "DEEPSEEK_API_KEY not configured" });
       return;
     }
 
-    const expMap = new Map<string, number>(
-      Object.entries(exposure || {}).map(([k, v]) => [k, Number(v) || 0])
-    );
-
     const input: DecisionInput = {
-      exposure: expMap,
+      directions: (directions || []) as CognitiveDirection[],
       readHistory: readHistory || [],
       impactHistory: (impactHistory || []) as ImpactRecord[],
       difficultyLevel: difficultyLevel || "L1",
-      highExposureFields: highExposureFields || [],
     };
 
     const result = await generateDailyChallenge(input);
@@ -89,26 +78,34 @@ router.post("/challenge", async (req: Request, res: Response) => {
 
 // ⑤⑥ 自评 + 反哺：提交冲击自评，调整难度，检查里程碑
 router.post("/assess", async (req: Request, res: Response) => {
-  const { contentId, dimensionId, dimensionName, title, impactScore, reflection, exposure, profile } = req.body;
+  const {
+    contentId,
+    directionId,
+    directionName,
+    subfieldId,
+    subfieldName,
+    title,
+    impactScore,
+    reflection,
+    directions,
+    profile,
+  } = req.body;
   try {
     if (!isApiKeyConfigured()) {
       res.status(500).json({ success: false, error: "DEEPSEEK_API_KEY not configured" });
       return;
     }
 
-    const expMap = new Map<string, number>(
-      Object.entries(exposure || {}).map(([k, v]) => [k, Number(v) || 0])
-    );
-
-    // 更新暴露值：已读维度 +1
-    const currentCount = expMap.get(dimensionId) || 0;
-    expMap.set(dimensionId, currentCount + 1);
+    const directionList = (directions || (profile?.directions) || []) as CognitiveDirection[];
 
     // 难度调整
     const impactHistory = (profile?.impactHistory || []) as ImpactRecord[];
     const newRecord: ImpactRecord = {
       contentId,
-      dimensionId,
+      directionId,
+      directionName,
+      subfieldId,
+      subfieldName,
       title,
       impactScore,
       reflection,
@@ -118,26 +115,27 @@ router.post("/assess", async (req: Request, res: Response) => {
 
     const assessment = adjustDifficulty(profile?.difficultyLevel || "L1", updatedHistory);
 
-    // 里程碑检查
+    // 里程碑检查（v6.0：基于方向树而非 exposure Map）
     const existingMilestoneIds = (profile?.milestones || []).map((m: any) =>
       typeof m === "string" ? m : m.type
     );
     const newMilestones = checkMilestones(
       updatedHistory,
       profile?.readHistory || [],
-      expMap,
+      directionList,
       existingMilestoneIds
     );
 
-    // 教练反馈
-    const coachProfile = buildProfileFromExposure(
-      expMap,
+    // 教练反馈（v6.0：传入 directionName + subfieldName）
+    const coachProfile = buildProfileFromDirections(
+      directionList,
       assessment.newDifficulty,
       updatedHistory,
       profile?.totalReads || 0
     );
     const feedback = await coachFeedback(
-      dimensionName,
+      directionName || "",
+      subfieldName || "",
       title,
       impactScore,
       reflection,
@@ -149,7 +147,7 @@ router.post("/assess", async (req: Request, res: Response) => {
     try {
       const context = buildCoachContext(coachProfile);
       keyInsight = await extractKeyInsight(
-        `我读了《${title}》（${dimensionName}），冲击自评：${impactScore}星，反思：${reflection || "无"}`,
+        `我读了《${title}》（${directionName || ""} / ${subfieldName || ""}），冲击自评：${impactScore}星，反思：${reflection || "无"}`,
         feedback,
         context
       );
@@ -160,7 +158,7 @@ router.post("/assess", async (req: Request, res: Response) => {
     res.json({
       success: true,
       data: {
-        newExposure: Object.fromEntries(expMap),
+        // v6.0：不再返回 newExposure，返回更新后的方向树（前端可基于 impactHistory 自行更新）
         newDifficulty: assessment.newDifficulty,
         difficultyChanged: assessment.difficultyChanged,
         newMilestones,
@@ -175,18 +173,12 @@ router.post("/assess", async (req: Request, res: Response) => {
   }
 });
 
-// 认知地图：纯数据，不需要 DeepSeek
+// 认知地图（v6.0：方向树视图，替代旧的 24 维热力图）
 router.post("/map", (req: Request, res: Response) => {
-  const { exposure } = req.body;
-  const expMap = new Map<string, number>(
-    Object.entries(exposure || {}).map(([k, v]) => [k, Number(v) || 0])
-  );
-  const map = COGNITIVE_DIMENSIONS.map((d) => ({
-    ...d,
-    userCount: expMap.get(d.id) ?? d.count,
-    isBlindSpot: (expMap.get(d.id) ?? d.count) < 30,
-  }));
-  res.json({ success: true, data: map });
+  const { directions } = req.body;
+  const directionList = (directions || []) as CognitiveDirection[];
+  // 直接返回方向树，前端按方向分组渲染子领域
+  res.json({ success: true, data: directionList });
 });
 
 // 成长曲线数据：基于历史记录计算
@@ -196,8 +188,8 @@ router.post("/growth", (req: Request, res: Response) => {
   const milestones = profile?.milestones || [];
 
   // 按时间分组统计
-  const weeklyData: Array<{ week: string; reads: number; avgImpact: number; dimensions: string[] }> = [];
-  const dimSet = new Set<string>();
+  const weeklyData: Array<{ week: string; reads: number; avgImpact: number; subfields: string[] }> = [];
+  const subfieldSet = new Set<string>();
 
   // 简化：按 impactHistory 顺序分组
   const sortedHistory = [...impactHistory].sort((a: any, b: any) =>
@@ -217,15 +209,15 @@ router.post("/growth", (req: Request, res: Response) => {
           week: currentWeek,
           reads: weekReads.length,
           avgImpact: weekReads.reduce((s, r) => s + r.impactScore, 0) / weekReads.length,
-          dimensions: Array.from(dimSet),
+          subfields: Array.from(subfieldSet),
         });
       }
       currentWeek = weekKey;
       weekReads = [];
-      dimSet.clear();
+      subfieldSet.clear();
     }
     weekReads.push(record);
-    dimSet.add(record.dimensionId);
+    subfieldSet.add(record.subfieldId || record.dimensionId);
   });
 
   // 最后一周
@@ -234,12 +226,12 @@ router.post("/growth", (req: Request, res: Response) => {
       week: currentWeek,
       reads: weekReads.length,
       avgImpact: weekReads.reduce((s, r) => s + r.impactScore, 0) / weekReads.length,
-      dimensions: Array.from(dimSet),
+      subfields: Array.from(subfieldSet),
     });
   }
 
   const totalReads = impactHistory.length;
-  const totalDimensions = new Set(impactHistory.map((r: any) => r.dimensionId)).size;
+  const totalSubfields = new Set(impactHistory.map((r: any) => r.subfieldId || r.dimensionId)).size;
   const avgImpact = totalReads > 0
     ? impactHistory.reduce((s: number, r: any) => s + r.impactScore, 0) / totalReads
     : 0;
@@ -251,7 +243,7 @@ router.post("/growth", (req: Request, res: Response) => {
       milestones,
       stats: {
         totalReads,
-        totalDimensions,
+        totalSubfields,
         avgImpact: Number(avgImpact.toFixed(2)),
         difficultyLevel: profile?.difficultyLevel || "L1",
       },
@@ -268,12 +260,11 @@ router.post("/coach", async (req: Request, res: Response) => {
       return;
     }
 
-    const expMap = new Map<string, number>(
-      Object.entries(profile?.exposure || {}).map(([k, v]) => [k, Number(v) || 0])
-    );
+    // v6.0：从 profile.directions 构建教练画像
+    const directionList = (profile?.directions || []) as CognitiveDirection[];
 
-    const coachProfile = buildProfileFromExposure(
-      expMap,
+    const coachProfile = buildProfileFromDirections(
+      directionList,
       profile?.difficultyLevel || "L1",
       profile?.impactHistory || [],
       profile?.totalReads || 0
@@ -301,21 +292,24 @@ router.post("/coach", async (req: Request, res: Response) => {
   }
 });
 
-// 兼容旧路由：内容详情
+// 兼容旧路由：内容详情（v6.0：基于 directionId + subfieldId + 方向树）
 router.post("/content", async (req: Request, res: Response) => {
-  const { contentId, exposure, difficultyLevel } = req.body;
+  const { directionId, subfieldId, directions, difficultyLevel } = req.body;
   try {
     if (!isApiKeyConfigured()) {
       res.status(500).json({ success: false, error: "DEEPSEEK_API_KEY not configured" });
       return;
     }
 
-    const expMap = new Map<string, number>(
-      Object.entries(exposure || {}).map(([k, v]) => [k, Number(v) || 0])
+    const directionList = (directions || []) as CognitiveDirection[];
+    const result = await getChallengeDetail(
+      directionId || "",
+      subfieldId || "",
+      directionList,
+      difficultyLevel || "L1"
     );
-    const result = await getChallengeDetail(contentId, expMap, difficultyLevel || "L1");
     if (!result) {
-      res.status(404).json({ success: false, error: "维度不存在" });
+      res.status(404).json({ success: false, error: "方向或子领域不存在" });
       return;
     }
     res.json({ success: true, data: result });

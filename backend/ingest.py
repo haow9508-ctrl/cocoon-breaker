@@ -1,7 +1,14 @@
-"""内容入库：采集 arXiv + Wikipedia → embedding → 写入 Qdrant + BM25 索引。
+"""内容入库：实时互联网检索 → embedding → 写入 Qdrant 缓存 + BM25 索引。
 
-抗 GEO 核心：每个认知维度都从边缘学术源采集内容，绕过 LLM 训练数据偏见。
+不是固定知识库——每次请求时实时从互联网检索内容，
+将结果 embedding 后存入 Qdrant 作为近期缓存（TTL 过期）。
+Qdrant 是"实时检索缓存层"，不是持久化知识库。
+
+模型：内容按"认知大方向 + 方向内子领域"组织，
+不再使用固定 dimension_id。检索源由 fetch_realtime 统一调度
+（优先 Bing，备选 Tavily）。
 """
+import time
 import uuid
 import config
 import embedding
@@ -9,124 +16,109 @@ import qdrant_client
 import bm25_retriever
 import content_sources
 
-# 维度英文关键词映射（arXiv 只支持英文搜索）
-DIMENSION_KEYWORDS = {
-    "entertainment": "pop culture entertainment media",
-    "humor": "humor comedy psychology",
-    "beauty": "beauty aesthetics cosmetics",
-    "movie": "film cinema movie studies",
-    "food": "food science gastronomy nutrition",
-    "gaming": "game design video game studies",
-    "tech": "technology computer science",
-    "auto": "automotive engineering vehicle",
-    "sports": "sports science athletics",
-    "finance": "finance economics markets",
-    "history": "history historiography",
-    "psychology": "psychology cognitive science",
-    "art": "art history visual arts",
-    "literature": "literature literary criticism",
-    "sociology": "sociology social science",
-    "philosophy": "philosophy ethics metaphysics",
-    "physics": "physics quantum mechanics",
-    "astronomy": "astronomy astrophysics cosmology",
-    "classical": "classical music musicology",
-    "biology": "biology evolution genetics",
-    "archaeology": "archaeology anthropology",
-    "linguistics": "linguistics language studies",
-    "architecture": "architecture urban design",
-    "math": "mathematics topology geometry",
-}
-
 
 def _estimate_read_time(text: str) -> int:
-    """粗略估算阅读时间（分钟）：按中文每分钟 300 字、英文每分钟 200 词折中。"""
+    """粗略估算阅读时间（分钟）：按中文每分钟 300 字折中。"""
     if not text:
         return 1
     return max(1, len(text) // 300)
 
 
-async def ingest_query(query: str, dimension_id: str) -> dict:
-    """采集 query 相关的 arXiv + Wikipedia 内容并入库。
+async def ingest_query(
+    query: str,
+    direction_id: str,
+    direction_name: str,
+    subfield_id: str,
+    subfield_name: str,
+) -> dict:
+    """实时从互联网检索内容并入库缓存（基于认知大方向 + 方向内子领域）。
 
-    返回 { success, count, arxiv, wikipedia, dimension_id }。
-    抗 GEO 策略：优先 arXiv 学术论文（不受 GEO 污染），辅以 Wikipedia。
+    返回 { success, count, direction_id, direction_name, subfield_id, subfield_name, query }。
+    内容来自实时互联网搜索（播客、访谈、认知类内容），非固定知识库——每日信息持续更新。
+    检索源由 content_sources.fetch_realtime 统一调度（优先 Bing，备选 Tavily）。
+
+    参数：
+      query: 原始检索查询
+      direction_id: 认知大方向 ID（由 LLM 在诊断阶段动态生成）
+      direction_name: 认知大方向名（如 "古诗"、"Python 编程"），用于查询增强
+      subfield_id: 方向内子领域 ID
+      subfield_name: 方向内子领域名（如 "诗论"、"Web 框架"），用于查询增强
     """
-    # 优先用维度英文关键词搜 arXiv（arXiv 只支持英文）
-    arxiv_query = DIMENSION_KEYWORDS.get(dimension_id, query)
-    print(f"[ingest] 采集 dimension={dimension_id} arxiv_query='{arxiv_query}'")
+    print(
+        f"[ingest] 实时检索 direction={direction_name}({direction_id}) "
+        f"subfield={subfield_name}({subfield_id}) query='{query}'"
+    )
 
-    # 抗 GEO：优先 arXiv 学术论文，辅以 Wikipedia
-    arxiv_docs = await content_sources.fetch_arxiv(arxiv_query)
-    # Wikipedia 可能被墙，失败时优雅降级（只用 arXiv）
-    wiki_docs = await content_sources.fetch_wikipedia(query)
-    all_docs = arxiv_docs + wiki_docs
+    # 实时互联网检索（统一入口：优先 Bing，备选 Tavily）
+    docs = await content_sources.fetch_realtime(query, direction_name, subfield_name)
 
-    if not all_docs:
+    if not docs:
         return {
             "success": False,
-            "error": "未采集到任何内容（arXiv/Wikipedia 均无结果）",
+            "error": "实时检索未返回结果（请检查 BING_API_KEY / TAVILY_API_KEY 配置或网络连接）",
             "count": 0,
-            "dimension_id": dimension_id,
-            "arxiv_query": arxiv_query,
+            "direction_id": direction_id,
+            "direction_name": direction_name,
+            "subfield_id": subfield_id,
+            "subfield_name": subfield_name,
+            "query": query,
         }
 
-    # 为每个文档分配 id 与 dimension_id
-    for doc in all_docs:
+    # 为每个文档分配 id、方向/子领域元数据、时间戳
+    current_time = time.time()
+    for doc in docs:
         doc["id"] = str(uuid.uuid4())
-        doc["dimension_id"] = dimension_id
+        doc["direction_id"] = direction_id
+        doc["direction_name"] = direction_name
+        doc["subfield_id"] = subfield_id
+        doc["subfield_name"] = subfield_name
         doc["read_time_minutes"] = _estimate_read_time(doc.get("description", ""))
+        doc["ingested_at"] = current_time  # 用于 TTL 过期判断
 
     # 批量生成 embedding（title + description 拼接作为语义文本）
-    texts = [f"{d['title']}. {d['description']}" for d in all_docs]
+    texts = [f"{d['title']}. {d['description']}" for d in docs]
     vectors = embedding.embed_batch(texts)
 
     # 组装 Qdrant 写入点
     points = []
-    for doc, vec in zip(all_docs, vectors):
+    for doc, vec in zip(docs, vectors):
         payload = {
-            "dimension_id": doc["dimension_id"],
+            "direction_id": doc["direction_id"],
+            "direction_name": doc["direction_name"],
+            "subfield_id": doc["subfield_id"],
+            "subfield_name": doc["subfield_name"],
             "title": doc["title"],
             "description": doc["description"],
             "source": doc["source"],
-            "source_type": doc["source_type"],
+            "source_type": doc["source_type"],  # "bing" 或 "tavily"
             "url": doc["url"],
+            "display_url": doc.get("display_url", ""),
+            "date_published": doc.get("date_published", ""),
             "read_time_minutes": doc["read_time_minutes"],
+            "ingested_at": doc["ingested_at"],  # TTL 时间戳
+            "query": query,
         }
-        if doc.get("pdf_url"):
-            payload["pdf_url"] = doc["pdf_url"]
         points.append({
             "id": doc["id"],
             "vector": vec,
             "payload": payload,
         })
 
-    # 写入 Qdrant 向量库
+    # 写入 Qdrant 缓存层
     qdrant_client.upsert_points(points)
 
-    # 写入 BM25 关键词索引（一次性增量添加）
+    # 写入 BM25 关键词索引
     bm25_docs = [{"id": p["id"], **p["payload"]} for p in points]
     bm25_retriever.add_documents(bm25_docs)
 
-    print(f"[ingest] 入库完成: arxiv={len(arxiv_docs)} wikipedia={len(wiki_docs)} total={len(all_docs)}")
+    print(f"[ingest] 入库缓存完成: {len(docs)} 条实时互联网内容")
     return {
         "success": True,
-        "count": len(all_docs),
-        "arxiv": len(arxiv_docs),
-        "wikipedia": len(wiki_docs),
-        "dimension_id": dimension_id,
+        "count": len(docs),
+        "direction_id": direction_id,
+        "direction_name": direction_name,
+        "subfield_id": subfield_id,
+        "subfield_name": subfield_name,
+        "query": query,
+        "source": "realtime",  # 实际 source_type 在每条 doc 上（bing / tavily）
     }
-
-
-async def ingest_predefined() -> list:
-    """为 24 个认知维度各采集内容入库（开发期可选）。
-    用维度英文关键词搜索 arXiv，抗 GEO。
-    """
-    results = []
-    for dim in config.COGNITIVE_DIMENSIONS:
-        try:
-            keyword = DIMENSION_KEYWORDS.get(dim, dim)
-            r = await ingest_query(keyword, dim)
-            results.append({"dimension": dim, **r})
-        except Exception as e:
-            results.append({"dimension": dim, "success": False, "error": str(e)})
-    return results

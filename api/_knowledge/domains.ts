@@ -1,59 +1,26 @@
-// 严格遵循 cocoon-breaker.html 中定义的 24 个认知维度
-export interface CognitiveDimension {
-  id: string;
-  name: string;
-  count: number; // 默认模拟暴露次数（demo 用）
-  category: "highExposure" | "lowExposure" | "blindSpot";
+// ===== 认知大方向 + 方向内子领域树（v6.0）=====
+// 不再使用固定 24 维度模型——认知大方向由 LLM 在诊断阶段动态识别
+// 举例：用户聊到自己在学 Python → 识别"Python 编程"大方向
+//       在该方向下动态生成子领域树（Python基础/Web框架/数据科学/算法思想/编程范式/类比语言）
+
+/**
+ * 子领域节点：某个认知大方向下的细分领域
+ * 用三档接触程度标注（high/low/none），不再使用编造的暴露数值
+ */
+export interface SubfieldNode {
+  id: string;          // 子领域标识（如 "python-web-frameworks"）
+  name: string;        // 子领域名称（如 "Web 框架"）
+  exposure: "high" | "low" | "none";  // 接触程度：high=高频 / low=偶尔 / none=未接触
 }
 
-export const COGNITIVE_DIMENSIONS: CognitiveDimension[] = [
-  { id: "entertainment", name: "娱乐八卦", count: 847, category: "highExposure" },
-  { id: "humor", name: "搞笑视频", count: 623, category: "highExposure" },
-  { id: "beauty", name: "美妆穿搭", count: 412, category: "highExposure" },
-  { id: "movie", name: "影视综艺", count: 358, category: "highExposure" },
-  { id: "food", name: "美食", count: 287, category: "highExposure" },
-  { id: "gaming", name: "游戏电竞", count: 245, category: "highExposure" },
-  { id: "tech", name: "科技数码", count: 189, category: "highExposure" },
-  { id: "auto", name: "汽车", count: 124, category: "highExposure" },
-  { id: "sports", name: "体育", count: 87, category: "highExposure" },
-  { id: "finance", name: "财经投资", count: 56, category: "lowExposure" },
-  { id: "history", name: "历史", count: 32, category: "lowExposure" },
-  { id: "psychology", name: "心理学", count: 18, category: "lowExposure" },
-  { id: "art", name: "艺术设计", count: 11, category: "lowExposure" },
-  { id: "literature", name: "文学", count: 7, category: "lowExposure" },
-  { id: "sociology", name: "社会学", count: 4, category: "lowExposure" },
-  { id: "philosophy", name: "哲学", count: 2, category: "lowExposure" },
-  { id: "physics", name: "粒子物理", count: 0, category: "blindSpot" },
-  { id: "astronomy", name: "天文学", count: 0, category: "blindSpot" },
-  { id: "classical", name: "古典音乐", count: 1, category: "blindSpot" },
-  { id: "biology", name: "生物学", count: 0, category: "blindSpot" },
-  { id: "archaeology", name: "考古学", count: 0, category: "blindSpot" },
-  { id: "linguistics", name: "语言学", count: 0, category: "blindSpot" },
-  { id: "architecture", name: "建筑学", count: 2, category: "blindSpot" },
-  { id: "math", name: "数学", count: 0, category: "blindSpot" },
-];
-
-export function getDimensionById(id: string): CognitiveDimension | undefined {
-  return COGNITIVE_DIMENSIONS.find((d) => d.id === id);
+/**
+ * 认知大方向：用户既定的认知拓展方向
+ * 每个方向内含一棵子领域树，标注用户已接触/未接触的子领域
+ */
+export interface CognitiveDirection {
+  id: string;          // 方向标识（如 "python-programming"）
+  name: string;        // 方向名称（如 "Python 编程"）
+  subfields: SubfieldNode[];  // 该方向下的子领域树
 }
 
-export function getAllDimensions(): CognitiveDimension[] {
-  return COGNITIVE_DIMENSIONS;
-}
-
-export function getBlindSpotDimensions(): CognitiveDimension[] {
-  return COGNITIVE_DIMENSIONS.filter((d) => d.count < 6);
-}
-
-export function getHighExposureDimensions(): CognitiveDimension[] {
-  return COGNITIVE_DIMENSIONS.filter((d) => d.count >= 501);
-}
-
-export function getColorByCount(count: number): string {
-  if (count === 0) return "blind";
-  if (count < 6) return "blind";
-  if (count < 51) return "#4ade80";
-  if (count < 201) return "#ffd23d";
-  if (count < 501) return "#ff8a3d";
-  return "#ff4d4d";
-}
+// 不再有固定维度数组——方向由 LLM 在诊断时动态识别

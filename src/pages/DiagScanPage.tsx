@@ -1,5 +1,6 @@
-// ===== 诊断式扫描页 =====
-// 第一印象页面：输入昵称 → 多轮对话扫描 → 分析生成认知档案 → 跳转主页
+// ===== 诊断式扫描页 v6.0 =====
+// v6.0：对话目标从"扫描 24 维暴露"改为"识别认知大方向 + 方向内子领域"
+// 输入昵称 → 多轮对话识别方向 → 分析生成方向树 → 跳转 ChallengePage
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
@@ -147,15 +148,17 @@ export function DiagScanPage() {
         .map((m) => m.content)
         .join("\n");
 
+      // v6.0：analyze 返回 { directions, difficultyLevel }，不再返回 exposure Map
       const result = await analyze(userInput);
       clearInterval(stepTimer);
       setAnalyzingStep(4);
 
-      // 创建档案并刷新状态
-      profileManager.createProfile(nickname, result.exposure, result.difficultyLevel);
+      // 创建档案：传入方向树（替代旧的 exposure Map）
+      profileManager.createProfile(nickname, result.directions, result.difficultyLevel);
       // 等待一瞬让用户看到完成态
       await new Promise((r) => setTimeout(r, 600));
       refreshProfile();
+      // 跳转到 ChallengePage（首页即挑战页）
       navigate("/");
     } catch (e: any) {
       clearInterval(stepTimer);
@@ -164,7 +167,13 @@ export function DiagScanPage() {
     }
   };
 
-  const ANALYZING_STEPS = ["解析你的内容消费习惯", "映射 24 个认知维度", "识别盲区与高频茧房", "生成专属认知档案"];
+  // v6.0：分析步骤文案——从"24 维扫描"改为"方向识别 + 子领域树"
+  const ANALYZING_STEPS = [
+    "解析你的内容消费习惯",
+    "识别你的认知大方向",
+    "生成方向内子领域树",
+    "标注已接触与未接触的子领域",
+  ];
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-[#0a0a0f] text-[#f5f5f7]">
@@ -185,7 +194,7 @@ export function DiagScanPage() {
             茧房爆破器
           </h1>
           <p className="mt-3 text-sm text-white/45">
-            一场关于你认知边界的诊断对话
+            识别你的认知大方向，在方向内拓展未接触的子领域
           </p>
         </div>
 

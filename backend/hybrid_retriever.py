@@ -62,7 +62,11 @@ def hybrid_search(query: str, query_vector: list, limit: int = 10, filter_condit
             "description": payload.get("description", ""),
             "url": payload.get("url", ""),
             "source_type": payload.get("source_type", ""),
-            "dimension_id": payload.get("dimension_id", ""),
+            # v6.0: 方向内拓展模型（替代旧的 dimension_id）
+            "direction_id": payload.get("direction_id", ""),
+            "direction_name": payload.get("direction_name", ""),
+            "subfield_id": payload.get("subfield_id", ""),
+            "subfield_name": payload.get("subfield_name", ""),
             "read_time_minutes": payload.get("read_time_minutes"),
             "payload": payload,
         })

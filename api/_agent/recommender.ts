@@ -1,42 +1,63 @@
-// ===== ③ 决策层 v4.1 — 真正的三维决策引擎 =====
-// 冲击度由 DeepSeek 评估（不再用硬编码矩阵）
-// 保留硬编码矩阵作为 fallback（API 失败时降级）
+// ===== ③ 决策层 v6.0 — 方向内拓展决策引擎 =====
+// 从"三维决策引擎（盲区度×冲击度×可接受度）跨维度推荐"改为"方向内拓展度推荐"
+// 在用户认知大方向内找"认知相邻但未接触"的子领域，而非跨方向找盲区
 
-import { COGNITIVE_DIMENSIONS, getDimensionById } from "../_knowledge/domains.js";
-import { generateChallenge, ChallengeContent, evaluateCognitiveDistances } from "./llm.js";
+import type { CognitiveDirection } from "../_knowledge/domains.js";
+import { generateChallenge, ChallengeContent, evaluateSubfieldExpansion } from "./llm.js";
 import { retrieveFromRag } from "./ragClient.js";
+import { getUnexploredSubfields, getKnownSubfields } from "./analyzer.js";
 import type { DifficultyLevel } from "./analyzer.js";
 
+/**
+ * 冲击自评记录（v6.0：基于方向内子领域）
+ * - directionId / directionName：所属认知大方向
+ * - subfieldId / subfieldName：拓展的具体子领域
+ */
 export interface ImpactRecord {
   contentId: string;
-  dimensionId: string;
+  directionId: string;        // 所属认知大方向
+  directionName: string;
+  subfieldId: string;          // 拓展的子领域
+  subfieldName: string;
   title: string;
   impactScore: 1 | 2 | 3 | 4 | 5;
   reflection: string;
   timestamp: string;
 }
 
+/**
+ * 决策输入（v6.0）
+ * - directions：用户认知大方向 + 子领域树（替代旧的 exposure Map）
+ * - 不再需要 highExposureFields（信息已在 directions 中）
+ */
 export interface DecisionInput {
-  exposure: Map<string, number>;
-  readHistory: string[];
+  directions: CognitiveDirection[];  // 用户认知大方向 + 子领域树
+  readHistory: string[];              // 已读内容 ID（避免重复推荐）
   impactHistory: ImpactRecord[];
   difficultyLevel: DifficultyLevel;
-  highExposureFields: string[];
 }
 
-interface ScoredDimension {
-  dimensionId: string;
-  dimensionName: string;
-  blindSpotScore: number;     // 盲区度 0-1
-  impactScore: number;        // 冲击度 0-1（DeepSeek 评估）
-  acceptabilityScore: number; // 可接受度 0-1
+/** 评分后的子领域候选 */
+interface ScoredSubfield {
+  directionId: string;
+  directionName: string;
+  subfieldId: string;
+  subfieldName: string;
+  expansionScore: number;   // 拓展价值 0-1（DeepSeek 评估）
   totalScore: number;
 }
 
+/**
+ * 挑战条目（v6.0）
+ * - directionId / directionName：所属认知大方向
+ * - subfieldId / subfieldName：方向内具体子领域（拓展目标）
+ */
 export interface ChallengeItem {
   id: string;
-  dimensionId: string;
-  dimensionName: string;
+  directionId: string;
+  directionName: string;
+  subfieldId: string;
+  subfieldName: string;
   title: string;
   why: string;
   description: string;
@@ -44,167 +65,113 @@ export interface ChallengeItem {
   readTimeMinutes: number;
   difficultyLevel: DifficultyLevel;
   coachGuidance: string;
-  exposureCount: number;
-  sourceType?: "arxiv" | "wikipedia" | "deepseek_fallback"; // 抗 GEO 透明度
-  sourceUrl?: string; // 真实链接（RAG 检索时提供）
+  sourceType?: "bing" | "deepseek_fallback";  // Bing 实时互联网检索 / DeepSeek 降级
+  sourceUrl?: string;  // 真实链接（RAG 检索时提供）
 }
 
 export interface ChallengeResult {
   items: ChallengeItem[];
-  blindSpotCount: number;
-  selectedDimensions: string[];
+  unexploredCount: number;        // 未接触子领域总数
+  selectedSubfields: string[];    // 选中的子领域 ID
 }
 
-// 维度类别映射（仅用于可接受度计算的 fallback）
-const DIMENSION_CATEGORY: Record<string, "entertainment" | "life" | "knowledge" | "science" | "humanities"> = {
-  entertainment: "entertainment", humor: "entertainment", beauty: "life", movie: "entertainment",
-  food: "life", gaming: "entertainment", tech: "knowledge", auto: "life",
-  sports: "life", finance: "knowledge", history: "humanities", psychology: "humanities",
-  art: "humanities", literature: "humanities", sociology: "humanities", philosophy: "humanities",
-  physics: "science", astronomy: "science", classical: "humanities", biology: "science",
-  archaeology: "humanities", linguistics: "humanities", architecture: "humanities", math: "science",
-};
-
-// Fallback 距离矩阵（DeepSeek 不可用时降级）
-const FALLBACK_DISTANCE: Record<string, Record<string, number>> = {
-  entertainment: { entertainment: 0.1, life: 0.3, knowledge: 0.6, humanities: 0.8, science: 1.0 },
-  life: { entertainment: 0.3, life: 0.1, knowledge: 0.4, humanities: 0.6, science: 0.8 },
-  knowledge: { entertainment: 0.6, life: 0.4, knowledge: 0.1, humanities: 0.4, science: 0.5 },
-  humanities: { entertainment: 0.8, life: 0.6, knowledge: 0.4, humanities: 0.1, science: 0.5 },
-  science: { entertainment: 1.0, life: 0.8, knowledge: 0.5, humanities: 0.5, science: 0.1 },
-};
-
 /**
- * ③ 决策：三维决策引擎，选择 Top 3 盲区维度
- * v4.1：冲击度由 DeepSeek 评估，不再用硬编码矩阵
+ * ③ 决策：在用户认知大方向内找"认知相邻但未接触"的子领域
+ * - 难度递进：
+ *   - L1=同方向相邻子领域（拓展价值高的优先，认知相邻易接受）
+ *   - L2=同方向中距子领域（拓展价值中等的）
+ *   - L3=同方向远端子领域（拓展价值低但属类比拓展，如 Python→C/Rust）
  */
-export async function decideBlindSpots(
+export async function decideExpansionTargets(
   input: DecisionInput
-): Promise<Array<{ id: string; name: string; exposureCount: number }>> {
-  const maxExposure = Math.max(...Array.from(input.exposure.values()), 100);
+): Promise<Array<{
+  directionId: string;
+  directionName: string;
+  subfieldId: string;
+  subfieldName: string;
+}>> {
+  // 候选：所有未接触子领域（已在用户大方向内，不会跨方向）
+  const allUnexplored = getUnexploredSubfields(input.directions);
+  if (allUnexplored.length === 0) return [];
 
-  // 候选维度：排除已读
-  const candidates = COGNITIVE_DIMENSIONS.filter((d) => !input.readHistory.includes(d.id));
-
-  // 用 DeepSeek 批量评估认知距离（冲击度）
-  const distanceMap = await evaluateCognitiveDistances(
-    candidates.map((d) => ({ id: d.id, name: d.name })),
-    input.highExposureFields
+  // 排除已读子领域（按 subfieldId 去重）
+  const readSubfieldIds = new Set(
+    input.impactHistory.map((r) => r.subfieldId).filter(Boolean)
   );
+  const candidates = allUnexplored.filter((s) => !readSubfieldIds.has(s.subfieldId));
+  if (candidates.length === 0) return [];
 
-  const scored: ScoredDimension[] = candidates.map((dim) => {
-    const exposureCount = input.exposure.get(dim.id) ?? dim.count;
+  // 用 DeepSeek 评估每个未接触子领域的方向内拓展价值
+  const knownSubfields = getKnownSubfields(input.directions);
+  const expansionMap = await evaluateSubfieldExpansion(candidates, knownSubfields);
 
-    // ① 盲区度：暴露越少，盲区度越高
-    const blindSpotScore = 1 - Math.min(exposureCount / maxExposure, 1);
-
-    // ② 冲击度：DeepSeek 评估的认知距离（替代硬编码矩阵）
-    const impactScore = distanceMap.get(dim.id) ?? 0.5;
-
-    // ③ 可接受度：根据难度等级 + 类别距离（fallback 逻辑保留）
-    const dimCategory = DIMENSION_CATEGORY[dim.id];
-    const highExposureCategories = input.highExposureFields
-      .map((name) => {
-        const d = COGNITIVE_DIMENSIONS.find((x) => x.name === name);
-        return d ? DIMENSION_CATEGORY[d.id] : null;
-      })
-      .filter(Boolean) as string[];
-
-    const acceptabilityScore = calculateAcceptability(
-      dimCategory,
-      highExposureCategories,
-      input.difficultyLevel
-    );
-
-    // 综合分：加权
-    const weights = getWeights(input.difficultyLevel);
-    const totalScore =
-      blindSpotScore * weights.blindSpot +
-      impactScore * weights.impact +
-      acceptabilityScore * weights.acceptability;
-
+  const scored: ScoredSubfield[] = candidates.map((s) => {
+    const expansionScore = expansionMap.get(s.subfieldId) ?? 0.5;
+    // 综合分：拓展价值即综合分（同方向内拓展价值高的优先）
     return {
-      dimensionId: dim.id,
-      dimensionName: dim.name,
-      blindSpotScore,
-      impactScore,
-      acceptabilityScore,
-      totalScore,
+      directionId: s.directionId,
+      directionName: s.directionName,
+      subfieldId: s.subfieldId,
+      subfieldName: s.subfieldName,
+      expansionScore,
+      totalScore: expansionScore,
     };
   });
 
   // 按难度等级过滤
-  const filtered = filterByDifficulty(scored, input.difficultyLevel, input.highExposureFields);
+  const filtered = filterByDifficulty(scored, input.difficultyLevel);
 
   // 综合排序，取 Top 3
   const top3 = filtered.sort((a, b) => b.totalScore - a.totalScore).slice(0, 3);
 
   return top3.map((s) => ({
-    id: s.dimensionId,
-    name: s.dimensionName,
-    exposureCount: input.exposure.get(s.dimensionId) ?? 0,
+    directionId: s.directionId,
+    directionName: s.directionName,
+    subfieldId: s.subfieldId,
+    subfieldName: s.subfieldName,
   }));
 }
 
-/** 计算可接受度：根据难度等级和类别距离 */
-function calculateAcceptability(
-  dimCategory: string,
-  highExposureCategories: string[],
-  difficultyLevel: DifficultyLevel
-): number {
-  if (highExposureCategories.length === 0) return 0.5;
-
-  const avgDistance = highExposureCategories.reduce((sum, cat) =>
-    sum + (FALLBACK_DISTANCE[dimCategory]?.[cat] ?? 0.5), 0) / highExposureCategories.length;
-
-  switch (difficultyLevel) {
-    case "L1":
-      return 1 - avgDistance;
-    case "L2":
-      return 1 - Math.abs(avgDistance - 0.5) * 2;
-    case "L3":
-      return avgDistance;
-  }
-}
-
-/** 按难度等级过滤维度（基于 DeepSeek 评估的距离） */
+/**
+ * 按难度等级过滤子领域（基于拓展价值分数）
+ * - L1：拓展价值高的（认知相邻，易接受）— 分数 ≥ 0.6
+ * - L2：拓展价值中等的（同方向中距）— 0.3 ≤ 分数 ≤ 0.8
+ * - L3：拓展价值低的（同方向远端，类比拓展）— 分数 ≤ 0.5
+ * 注：L1 与 L3 在分数区间上有意重叠（边界值），保证不同难度都有候选
+ */
 function filterByDifficulty(
-  scored: ScoredDimension[],
-  difficultyLevel: DifficultyLevel,
-  highExposureFields: string[]
-): ScoredDimension[] {
-  // 使用 DeepSeek 评估的 impactScore 进行过滤
-  return scored.filter((s) => {
+  scored: ScoredSubfield[],
+  difficultyLevel: DifficultyLevel
+): ScoredSubfield[] {
+  // 如果过滤后为空，回退使用全部候选（按难度排序）
+  const filtered = scored.filter((s) => {
     switch (difficultyLevel) {
-      case "L1": return s.impactScore < 0.6;  // 相邻盲区
-      case "L2": return s.impactScore >= 0.3 && s.impactScore <= 0.8; // 中距盲区
-      case "L3": return s.impactScore >= 0.5;  // 远端盲区
+      case "L1": return s.expansionScore >= 0.6;   // 同方向相邻
+      case "L2": return s.expansionScore >= 0.3 && s.expansionScore <= 0.8; // 同方向中距
+      case "L3": return s.expansionScore <= 0.5;    // 同方向远端（类比拓展）
     }
   });
-}
-
-/** 获取难度权重 */
-function getWeights(level: DifficultyLevel): { blindSpot: number; impact: number; acceptability: number } {
-  switch (level) {
-    case "L1": return { blindSpot: 0.3, impact: 0.2, acceptability: 0.5 };
-    case "L2": return { blindSpot: 0.3, impact: 0.4, acceptability: 0.3 };
-    case "L3": return { blindSpot: 0.2, impact: 0.6, acceptability: 0.2 };
-  }
+  if (filtered.length > 0) return filtered;
+  // 回退：直接按难度对全部候选排序后取前 3
+  return scored;
 }
 
 /** ③④ 决策 + 生成：完整每日挑战流程 */
 export async function generateDailyChallenge(
   input: DecisionInput
 ): Promise<ChallengeResult> {
-  // ③ 决策：三维决策引擎选择盲区（现在是 async，调 DeepSeek）
-  const selectedDims = await decideBlindSpots(input);
+  // ③ 决策：在用户大方向内选未接触子领域（async，调 DeepSeek 评估拓展价值）
+  const selectedTargets = await decideExpansionTargets(input);
 
-  if (selectedDims.length === 0) {
-    return { items: [], blindSpotCount: 0, selectedDimensions: [] };
+  // 统计未接触子领域总数（无论是否被选中）
+  const unexploredCount = getUnexploredSubfields(input.directions).length;
+
+  if (selectedTargets.length === 0) {
+    return { items: [], unexploredCount, selectedSubfields: [] };
   }
 
-  // ④a RAG 检索：为每个盲区维度从 arXiv/Wikipedia 检索真实内容（抗 GEO）
-  const ragResultsByDim = new Map<string, Array<{
+  // ④a RAG 检索：为每个子领域从 Bing 实时互联网检索真实内容（抗 GEO）
+  const ragResultsBySubfield = new Map<string, Array<{
     title: string;
     description: string;
     source: string;
@@ -213,16 +180,20 @@ export async function generateDailyChallenge(
     readTimeMinutes: number;
   }>>();
 
-  await Promise.all(selectedDims.map(async (dim) => {
-    const query = `${dim.name} 认知盲区 ${input.highExposureFields.slice(0, 2).join(" ")}`.trim();
+  const knownSubfields = getKnownSubfields(input.directions);
+
+  await Promise.all(selectedTargets.map(async (target) => {
+    // 构造查询：方向名 + 子领域名 + 深度内容关键词
+    const query = `${target.directionName} ${target.subfieldName} 深度解读 播客 访谈`.trim();
     const results = await retrieveFromRag({
       query,
-      highExposureFields: input.highExposureFields,
-      dimensionId: dim.id,
+      highExposureFields: knownSubfields,
+      // RAG 后端字段保留 dimension_id 名称（兼容 Python 后端契约）
+      dimensionId: target.subfieldId,
       limit: 3,
     });
     if (results.length > 0) {
-      ragResultsByDim.set(dim.id, results.map(r => ({
+      ragResultsBySubfield.set(target.subfieldId, results.map(r => ({
         title: r.title,
         description: r.description,
         source: r.source,
@@ -235,16 +206,18 @@ export async function generateDailyChallenge(
 
   // ④b 生成：基于 RAG 真实内容生成挑战（DeepSeek 只做教练引导）
   const challenges: ChallengeContent[] = await generateChallenge(
-    selectedDims,
-    input.highExposureFields,
+    selectedTargets,
+    knownSubfields,
     input.difficultyLevel,
-    ragResultsByDim
+    ragResultsBySubfield
   );
 
   const items: ChallengeItem[] = challenges.map((c, idx) => ({
-    id: `${c.dimensionId}_${Date.now()}_${idx}`,
-    dimensionId: c.dimensionId,
-    dimensionName: c.dimensionName,
+    id: `${c.subfieldId}_${Date.now()}_${idx}`,
+    directionId: c.directionId,
+    directionName: c.directionName,
+    subfieldId: c.subfieldId,
+    subfieldName: c.subfieldName,
     title: c.title,
     why: c.why,
     description: c.description,
@@ -252,37 +225,35 @@ export async function generateDailyChallenge(
     readTimeMinutes: c.readTimeMinutes,
     difficultyLevel: c.difficultyLevel,
     coachGuidance: c.coachGuidance,
-    exposureCount: input.exposure.get(c.dimensionId) ?? 0,
     sourceType: c.sourceType,
     sourceUrl: c.sourceUrl,
   }));
 
-  const blindSpotCount = COGNITIVE_DIMENSIONS.filter(
-    (d) => (input.exposure.get(d.id) ?? d.count) < 30
-  ).length;
-
   return {
     items,
-    blindSpotCount,
-    selectedDimensions: selectedDims.map((d) => d.id),
+    unexploredCount,
+    selectedSubfields: selectedTargets.map((t) => t.subfieldId),
   };
 }
 
-/** 内容详情：由 DeepSeek 为单个维度动态生成（基于 RAG 真实内容） */
+/** 内容详情：由 DeepSeek 为单个子领域动态生成（基于 RAG 真实内容） */
 export async function getChallengeDetail(
-  dimensionId: string,
-  exposure: Map<string, number>,
+  directionId: string,
+  subfieldId: string,
+  directions: CognitiveDirection[],
   difficultyLevel: DifficultyLevel
 ): Promise<ChallengeItem | undefined> {
-  const dim = getDimensionById(dimensionId);
-  if (!dim) return undefined;
+  // 在方向树中找到该方向和子领域
+  const direction = directions.find((d) => d.id === directionId);
+  if (!direction) return undefined;
+  const subfield = direction.subfields.find((s) => s.id === subfieldId);
+  if (!subfield) return undefined;
 
-  const highExposureNames = COGNITIVE_DIMENSIONS
-    .filter((d) => (exposure.get(d.id) ?? d.count) >= 200)
-    .map((d) => d.name);
+  // 已接触子领域（用于类比桥接）
+  const knownSubfields = getKnownSubfields(directions);
 
   // RAG 检索真实内容（抗 GEO）
-  const ragResultsByDim = new Map<string, Array<{
+  const ragResultsBySubfield = new Map<string, Array<{
     title: string;
     description: string;
     source: string;
@@ -291,15 +262,16 @@ export async function getChallengeDetail(
     readTimeMinutes: number;
   }>>();
 
-  const query = `${dim.name} 认知盲区 ${highExposureNames.slice(0, 2).join(" ")}`.trim();
+  const query = `${direction.name} ${subfield.name} 深度解读 播客 访谈`.trim();
   const results = await retrieveFromRag({
     query,
-    highExposureFields: highExposureNames,
-    dimensionId,
+    highExposureFields: knownSubfields,
+    // RAG 后端字段保留 dimension_id 名称（兼容 Python 后端契约）
+    dimensionId: subfieldId,
     limit: 3,
   });
   if (results.length > 0) {
-    ragResultsByDim.set(dimensionId, results.map(r => ({
+    ragResultsBySubfield.set(subfieldId, results.map(r => ({
       title: r.title,
       description: r.description,
       source: r.source,
@@ -310,19 +282,26 @@ export async function getChallengeDetail(
   }
 
   const challenges = await generateChallenge(
-    [{ id: dimensionId, name: dim.name, exposureCount: exposure.get(dimensionId) ?? dim.count }],
-    highExposureNames,
+    [{
+      directionId: direction.id,
+      directionName: direction.name,
+      subfieldId: subfield.id,
+      subfieldName: subfield.name,
+    }],
+    knownSubfields,
     difficultyLevel,
-    ragResultsByDim
+    ragResultsBySubfield
   );
 
   if (challenges.length === 0) return undefined;
   const c = challenges[0];
 
   return {
-    id: `${dimensionId}_${Date.now()}`,
-    dimensionId,
-    dimensionName: dim.name,
+    id: `${subfieldId}_${Date.now()}`,
+    directionId,
+    directionName: direction.name,
+    subfieldId,
+    subfieldName: subfield.name,
     title: c.title,
     why: c.why,
     description: c.description,
@@ -330,7 +309,6 @@ export async function getChallengeDetail(
     readTimeMinutes: c.readTimeMinutes,
     difficultyLevel,
     coachGuidance: c.coachGuidance,
-    exposureCount: exposure.get(dimensionId) ?? dim.count,
     sourceType: c.sourceType,
     sourceUrl: c.sourceUrl,
   };

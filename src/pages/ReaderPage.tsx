@@ -1,26 +1,13 @@
-// ===== 阅读 + 冲击自评页 =====
+// ===== 阅读 + 冲击自评页 v6.0 =====
+// v6.0：路由参数从 /read/:id（dimensionId）改为 /read/:directionId/:subfieldId
 // 展示完整挑战内容 → 阅读后冲击自评（星级 + 反思）→ 教练反馈 + 里程碑
 
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Star, Clock, ArrowLeft, Loader2, Send, Sparkles, TrendingUp, Trophy } from "lucide-react";
-import { getContentDetail, submitAssessment } from "../lib/apiClient";
+import { Star, Clock, ArrowLeft, Loader2, Send, Sparkles, TrendingUp, Trophy, Compass } from "lucide-react";
+import { getContentDetail, submitAssessment, type ChallengeItem } from "../lib/apiClient";
 import { cn } from "@/lib/utils";
-
-interface ChallengeItem {
-  id: string;
-  dimensionId: string;
-  dimensionName: string;
-  title: string;
-  why: string;
-  description: string;
-  source: string;
-  readTimeMinutes: number;
-  difficultyLevel: "L1" | "L2" | "L3";
-  coachGuidance: string;
-  exposureCount: number;
-}
 
 interface AssessResult {
   newDifficulty: "L1" | "L2" | "L3";
@@ -36,7 +23,8 @@ const DIFF_BADGE: Record<string, string> = {
 };
 
 export function ReaderPage() {
-  const { id } = useParams<{ id: string }>();
+  // v6.0：路由参数改为 directionId + subfieldId（替代旧的 :id）
+  const { directionId, subfieldId } = useParams<{ directionId: string; subfieldId: string }>();
   const navigate = useNavigate();
 
   const [item, setItem] = useState<ChallengeItem | null>(null);
@@ -53,12 +41,13 @@ export function ReaderPage() {
   useEffect(() => {
     let alive = true;
     (async () => {
-      if (!id) return;
+      if (!directionId || !subfieldId) return;
       setLoading(true);
       setError("");
       try {
-        const res = await getContentDetail(id);
-        if (alive) setItem(res);
+        // v6.0：getContentDetail 接收 directionId + subfieldId
+        const res = await getContentDetail(directionId, subfieldId);
+        if (alive) setItem(res || null);
       } catch (e: any) {
         if (alive) setError(e.message || "加载内容失败");
       } finally {
@@ -68,17 +57,20 @@ export function ReaderPage() {
     return () => {
       alive = false;
     };
-  }, [id]);
+  }, [directionId, subfieldId]);
 
   const handleSubmit = async () => {
     if (!item || rating === 0 || submitting) return;
     setSubmitting(true);
     setError("");
     try {
+      // v6.0：submitAssessment 参数从 dimensionId/dimensionName 改为 directionId/directionName/subfieldId/subfieldName
       const res = await submitAssessment(
-        item.dimensionId,
-        item.dimensionId,
-        item.dimensionName,
+        item.id,
+        item.directionId,
+        item.directionName,
+        item.subfieldId,
+        item.subfieldName,
         item.title,
         rating as 1 | 2 | 3 | 4 | 5,
         reflection.trim()
@@ -129,13 +121,16 @@ export function ReaderPage() {
       <AnimatePresence mode="wait">
         {!result ? (
           <motion.div key="reader" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
-            {/* 文章头部 */}
-            <div className="mb-6 flex items-center gap-3">
+            {/* 文章头部：难度 + 方向标签 + 子领域 + 阅读时间 */}
+            <div className="mb-6 flex flex-wrap items-center gap-3">
               <span className={cn("rounded border px-1.5 py-0.5 text-[11px] font-semibold", DIFF_BADGE[item.difficultyLevel])}>
                 {item.difficultyLevel}
               </span>
-              <span className="text-[11px] font-medium uppercase tracking-wider text-white/40">
-                {item.dimensionName}
+              <span className="rounded-full border border-white/10 bg-white/[0.03] px-2 py-0.5 text-[10px] font-medium text-white/55">
+                {item.directionName}
+              </span>
+              <span className="flex items-center gap-1 text-[11px] text-white/45">
+                <Compass className="h-3 w-3" /> 子领域 · {item.subfieldName}
               </span>
               <span className="flex items-center gap-1 text-[11px] text-white/35">
                 <Clock className="h-3 w-3" /> {item.readTimeMinutes} 分钟

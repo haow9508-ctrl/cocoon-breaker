@@ -2,7 +2,7 @@
 // 固定顶部，毛玻璃半透明背景；左侧 logo，右侧导航 + 难度等级徽章
 
 import { NavLink } from "react-router-dom";
-import { Flame, Target, Trophy, Grid3x3, Hexagon } from "lucide-react";
+import { Flame, Target, Trophy, Network, Hexagon } from "lucide-react";
 import { useAppStore } from "../store/useAppStore";
 import { cn } from "@/lib/utils";
 
@@ -17,7 +17,7 @@ const NAV_ITEMS = [
   { to: "/", label: "每日挑战", icon: Target },
   { to: "/growth", label: "成长曲线", icon: Flame },
   { to: "/milestones", label: "里程碑", icon: Trophy },
-  { to: "/heatmap", label: "热力图", icon: Grid3x3 },
+  { to: "/directions", label: "方向树", icon: Network },
 ];
 
 export function NavBar() {

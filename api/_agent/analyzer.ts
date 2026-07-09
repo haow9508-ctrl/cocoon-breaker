@@ -1,73 +1,97 @@
-// ===== ② 分析层 v4.0 =====
+// ===== ② 分析层 v6.0 =====
+// 从"24 维暴露扫描"改为"认知大方向识别 + 方向内子领域树"
 // 不静默降级：LLM 失败时抛出错误
 
-import { COGNITIVE_DIMENSIONS } from "../_knowledge/domains.js";
-import { analyzeAllDimensions } from "./llm.js";
+import type { CognitiveDirection } from "../_knowledge/domains.js";
+// 以别名导入 llm.analyzeDirections，避免与本模块导出的 analyzeDirections 命名冲突
+import { analyzeDirections as llmAnalyzeDirections } from "./llm.js";
 
 export type DifficultyLevel = "L1" | "L2" | "L3";
 
+/**
+ * 分析结果（v6.0）
+ * - directions：1-3 个认知大方向 + 方向内子领域树
+ * - initialDifficulty：初始难度（新用户统一从 L1 开始）
+ */
 export interface AnalysisResult {
-  exposure: Map<string, number>;
-  highExposureFields: string[];
-  blindSpotFields: string[];
+  directions: CognitiveDirection[];  // 1-3 个认知大方向 + 子领域树
   initialDifficulty: DifficultyLevel;
 }
 
-/** ② 分析：生成24维暴露值 + 高频领域 + 盲区领域 + 初始难度等级 */
-export async function analyzeExposure(userInput: string): Promise<AnalysisResult> {
+/**
+ * ② 分析：识别用户认知大方向 + 子领域接触图
+ * - 调用 LLM 从用户自然语言中推断 1-3 个大方向
+ * - 每个方向下动态生成子领域树，标注 high/low/none 三档接触程度
+ */
+export async function analyzeDirections(userInput: string): Promise<AnalysisResult> {
   if (!userInput?.trim()) {
     return buildDefaultResult();
   }
 
-  const llmExposure = await analyzeAllDimensions(userInput.trim());
-  const result = new Map<string, number>();
-  COGNITIVE_DIMENSIONS.forEach((d) => {
-    const val = llmExposure.get(d.id);
-    result.set(d.id, val !== undefined ? val : d.count);
-  });
-
-  return buildResultFromExposure(result);
-}
-
-function buildDefaultResult(): AnalysisResult {
-  const m = new Map<string, number>();
-  COGNITIVE_DIMENSIONS.forEach((d) => m.set(d.id, d.count));
-  return buildResultFromExposure(m);
-}
-
-function buildResultFromExposure(exposure: Map<string, number>): AnalysisResult {
-  const highExposureFields = COGNITIVE_DIMENSIONS
-    .filter((d) => (exposure.get(d.id) ?? d.count) >= 200)
-    .map((d) => d.name);
-
-  const blindSpotFields = COGNITIVE_DIMENSIONS
-    .filter((d) => (exposure.get(d.id) ?? d.count) < 30)
-    .map((d) => d.name);
-
-  // 初始难度：高频领域越多，说明用户认知越窄，从 L1 开始
-  // 高频领域 ≤3 → L1，4-6 → L1，>6 → L1（新用户统一从 L1 开始）
-  const initialDifficulty: DifficultyLevel = "L1";
-
+  const { directions } = await llmAnalyzeDirections(userInput.trim());
   return {
-    exposure,
-    highExposureFields,
-    blindSpotFields,
-    initialDifficulty,
+    directions,
+    initialDifficulty: "L1",
   };
 }
 
-export function isBlindSpot(exposure: Map<string, number>, dimensionId: string): boolean {
-  return (exposure.get(dimensionId) || 0) < 30;
+/** 默认结果：用户输入为空时返回空方向列表 */
+function buildDefaultResult(): AnalysisResult {
+  return {
+    directions: [],
+    initialDifficulty: "L1",
+  };
 }
 
-export function getHighExposureDimensions(exposure: Map<string, number>): string[] {
-  return Array.from(exposure.entries())
-    .filter(([_, c]) => c >= 200)
-    .map(([id]) => id);
+/**
+ * 辅助：判断某子领域是否未接触（拓展候选）
+ */
+export function isUnexplored(direction: CognitiveDirection, subfieldId: string): boolean {
+  const sub = direction.subfields.find((s) => s.id === subfieldId);
+  return sub ? sub.exposure === "none" : false;
 }
 
-export function getBlindSpotDimensions(exposure: Map<string, number>): string[] {
-  return Array.from(exposure.entries())
-    .filter(([_, c]) => c < 30)
-    .map(([id]) => id);
+/**
+ * 辅助：从方向树中提取所有"未接触"子领域（拓展候选）
+ */
+export function getUnexploredSubfields(directions: CognitiveDirection[]): Array<{
+  directionId: string;
+  directionName: string;
+  subfieldId: string;
+  subfieldName: string;
+}> {
+  const result: Array<{
+    directionId: string;
+    directionName: string;
+    subfieldId: string;
+    subfieldName: string;
+  }> = [];
+  for (const dir of directions) {
+    for (const sub of dir.subfields) {
+      if (sub.exposure === "none") {
+        result.push({
+          directionId: dir.id,
+          directionName: dir.name,
+          subfieldId: sub.id,
+          subfieldName: sub.name,
+        });
+      }
+    }
+  }
+  return result;
+}
+
+/**
+ * 辅助：从方向树中提取所有"已接触"子领域名称（用于类比桥接）
+ */
+export function getKnownSubfields(directions: CognitiveDirection[]): string[] {
+  const result: string[] = [];
+  for (const dir of directions) {
+    for (const sub of dir.subfields) {
+      if (sub.exposure === "high" || sub.exposure === "low") {
+        result.push(sub.name);
+      }
+    }
+  }
+  return result;
 }

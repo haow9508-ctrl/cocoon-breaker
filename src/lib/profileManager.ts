@@ -1,21 +1,47 @@
-// ===== 认知档案管理器 v4.1 =====
-// 实现 PRD 承诺：profileVersion + impactHistory 上限 + 导出导入 + 暴露快照 + 认知指纹
+// ===== 认知档案管理器 v6.0 =====
+// v6.0：从"固定 24 维暴露值（exposure Map）"重构为"认知大方向 + 方向内子领域树"
+// schema 迁移：profileVersion < 6 的旧档案加载时清除 24 维数据，强制用户重新诊断
+
+// 子领域节点：某认知大方向下的细分领域，三档接触程度
+export interface SubfieldNode {
+  id: string;
+  name: string;
+  exposure: "high" | "low" | "none"; // high=已接触 / low=偶尔接触 / none=未接触
+}
+
+// 认知大方向：用户既定的认知拓展方向
+export interface CognitiveDirection {
+  id: string;
+  name: string;
+  subfields: SubfieldNode[];
+}
 
 export type DifficultyLevel = "L1" | "L2" | "L3";
 
+/**
+ * 冲击自评记录（v6.0：基于方向内子领域）
+ * - directionId / directionName：所属认知大方向
+ * - subfieldId / subfieldName：方向内具体子领域（拓展目标）
+ */
 export interface ImpactRecord {
   contentId: string;
-  dimensionId: string;
-  dimensionName: string;
+  directionId: string;
+  directionName: string;
+  subfieldId: string;
+  subfieldName: string;
   title: string;
   impactScore: 1 | 2 | 3 | 4 | 5;
   reflection: string;
   timestamp: string;
 }
 
+/**
+ * 暴露快照（v6.0：基于方向树，替代旧的 24 维 exposure Map）
+ * 每天一条，记录当时的 directions 树状态
+ */
 export interface ExposureSnapshot {
   date: string; // ISO date (yyyy-mm-dd)
-  exposure: Record<string, number>;
+  directions: CognitiveDirection[];
 }
 
 export interface Milestone {
@@ -25,51 +51,54 @@ export interface Milestone {
   unlockedAt: string;
 }
 
+/**
+ * 认知指纹（v6.0：基于方向树而非 24 维 exposure）
+ */
 export interface CognitiveFingerprint {
-  topFields: string[];        // 高频领域 top3
-  blindSpotCount: number;     // 盲区数
-  coverageRate: number;       // 覆盖率 0-1
-  avgImpact: number;          // 平均冲击分
+  topDirections: string[];       // 高频接触的方向 top3
+  unexploredCount: number;       // 未接触子领域数
+  coverageRate: number;          // 子领域覆盖率 0-1
+  avgImpact: number;             // 平均冲击分
   difficultyLevel: DifficultyLevel;
-  signature: string;          // 简短指纹签名
+  signature: string;             // 简短指纹签名
 }
 
+/**
+ * 认知档案（v6.0）
+ * - directions：1-3 个认知大方向 + 方向内子领域树（替代旧的 24 维 exposure Map）
+ * - impactHistory：subfieldId 替代 dimensionId
+ */
 export interface CognitiveProfile {
-  // 元数据
-  profileVersion: number;     // schema 版本，支持迁移
+  profileVersion: number;
   userId: string;
   nickname: string;
   createdAt: string;
 
-  // 暴露数据
-  initialExposure: Record<string, number>;
-  currentExposure: Record<string, number>;
-  exposureSnapshots: ExposureSnapshot[]; // PRD 承诺：暴露历史快照
+  // v6.0：从 24 维数值 exposure 改为方向+子领域
+  directions: CognitiveDirection[];
+  exposureSnapshots: ExposureSnapshot[]; // 暴露历史快照（基于 subfield）
 
-  // 状态
   difficultyLevel: DifficultyLevel;
 
   // 历史记录（上限 100 条 + 聚合）
   impactHistory: ImpactRecord[];
   impactAggregate: {
     totalReads: number;
-    totalDimensions: string[];
+    totalSubfields: number;
     avgImpact: number;
   };
 
-  // 成就
   milestones: Milestone[];
-  readHistory: string[];
+  readHistory: string[]; // subfieldId 列表
 
-  // 教练记忆 — PRD 承诺
   coachMemory: {
     lastReviewedAt: string;
-    keyInsights: string[]; // 每次对话后提取的关键洞察
+    keyInsights: string[];
   };
 }
 
-const PROFILE_KEY = "cocoon_profile_v4";
-const CURRENT_VERSION = 2; // v4.1 = version 2
+const PROFILE_KEY = "cocoon_profile_v6";
+const CURRENT_VERSION = 6; // v6.0：方向树结构
 
 /** 加载档案，含 schema 迁移 */
 function loadProfile(): CognitiveProfile | null {
@@ -84,25 +113,42 @@ function loadProfile(): CognitiveProfile | null {
   }
 }
 
-/** Schema 迁移：确保旧档案兼容新结构 */
+/**
+ * Schema 迁移：
+ * - 旧 key（cocoon_profile_v4）的档案 profileVersion < 6，视为不兼容
+ * - 直接清空旧的 24 维数据（initialExposure/currentExposure/exposure Map）
+ *   旧档案结构与新结构无法无损映射，要求用户重新诊断
+ */
 function migrateProfile(data: any): CognitiveProfile {
-  // v1 (无 profileVersion) → v2
-  if (!data.profileVersion || data.profileVersion < 2) {
+  if (!data || typeof data !== "object") {
+    throw new Error("档案数据损坏");
+  }
+
+  // v6.0 之前（含 v4/v5 的 24 维结构）：清除旧数据，标记为新版空档案
+  if (!data.profileVersion || data.profileVersion < CURRENT_VERSION) {
     data.profileVersion = CURRENT_VERSION;
-    if (!data.exposureSnapshots) data.exposureSnapshots = [];
-    if (!data.impactAggregate) {
-      data.impactAggregate = {
-        totalReads: data.impactHistory?.length || 0,
-        totalDimensions: Array.from(new Set((data.impactHistory || []).map((r: ImpactRecord) => r.dimensionId))),
-        avgImpact: data.impactHistory?.length > 0
-          ? data.impactHistory.reduce((s: number, r: ImpactRecord) => s + r.impactScore, 0) / data.impactHistory.length
-          : 0,
-      };
-    }
+    // 清除旧的 24 维数据
+    delete data.initialExposure;
+    delete data.currentExposure;
+    // 旧 exposureSnapshots 中可能包含 exposure Map，整体清空
+    data.exposureSnapshots = [];
+    // 旧 impactHistory 中的 dimensionId 字段在 v6.0 已废弃
+    // 保留历史记录但 directions 必须为空（用户需重新诊断）
+    data.directions = [];
+    // 重置聚合（旧的 totalDimensions 字段废弃）
+    data.impactAggregate = {
+      totalReads: 0,
+      totalSubfields: 0,
+      avgImpact: 0,
+    };
     if (!data.coachMemory) {
       data.coachMemory = { lastReviewedAt: "", keyInsights: [] };
     }
+    if (!Array.isArray(data.milestones)) data.milestones = [];
+    if (!Array.isArray(data.readHistory)) data.readHistory = [];
+    if (!Array.isArray(data.impactHistory)) data.impactHistory = [];
   }
+
   return data as CognitiveProfile;
 }
 
@@ -129,26 +175,64 @@ function saveProfile(profile: CognitiveProfile): boolean {
   }
 }
 
-/** 生成认知指纹 — PRD 承诺 */
+/**
+ * 计算认知指纹（v6.0：基于方向树）
+ * - topDirections：按已接触子领域数排序，取前 3 个方向名
+ * - unexploredCount：所有方向下未接触子领域总数
+ * - coverageRate：已接触子领域数 / 子领域总数
+ */
 export function generateFingerprint(profile: CognitiveProfile): CognitiveFingerprint {
-  const entries = Object.entries(profile.currentExposure);
-  const sorted = entries.sort((a, b) => b[1] - a[1]);
-  const topFields = sorted.slice(0, 3).map(([id]) => id);
-  const blindSpotCount = entries.filter(([_, v]) => v < 30).length;
-  const coverageRate = entries.filter(([_, v]) => v > 0).length / entries.length;
-  const avgImpact = profile.impactAggregate.avgImpact || 0;
+  const directions = profile.directions || [];
+  let total = 0;
+  let touched = 0;
+  let untouched = 0;
+  const dirCounts: Array<{ name: string; touched: number }> = [];
 
-  // 简短签名：高频领域首字母 + 盲区数 + 覆盖率
-  const signature = `${topFields.join("").slice(0, 6).toUpperCase()}-${blindSpotCount}B-${Math.round(coverageRate * 100)}%`;
+  for (const dir of directions) {
+    let dirTouched = 0;
+    for (const sub of dir.subfields) {
+      total++;
+      if (sub.exposure === "high" || sub.exposure === "low") {
+        touched++;
+        dirTouched++;
+      } else {
+        untouched++;
+      }
+    }
+    dirCounts.push({ name: dir.name, touched: dirTouched });
+  }
+
+  const topDirections = dirCounts
+    .sort((a, b) => b.touched - a.touched)
+    .slice(0, 3)
+    .map((d) => d.name);
+
+  const coverageRate = total > 0 ? touched / total : 0;
+  const avgImpact = profile.impactAggregate?.avgImpact || 0;
+
+  // 简短签名：方向首字母 + 未接触数 + 覆盖率
+  const signature = `${topDirections.join("").slice(0, 6)}-${untouched}U-${Math.round(coverageRate * 100)}%`;
 
   return {
-    topFields,
-    blindSpotCount,
+    topDirections,
+    unexploredCount: untouched,
     coverageRate,
     avgImpact: Number(avgImpact.toFixed(2)),
     difficultyLevel: profile.difficultyLevel,
     signature,
   };
+}
+
+/** 辅助：将 subfieldId 加入方向树的接触记录（用于 addReadContent） */
+function bumpSubfieldExposure(directions: CognitiveDirection[], subfieldId: string): CognitiveDirection[] {
+  return directions.map((dir) => ({
+    ...dir,
+    subfields: dir.subfields.map((sub) =>
+      sub.id === subfieldId && sub.exposure !== "high"
+        ? { ...sub, exposure: sub.exposure === "none" ? "low" : "high" as const }
+        : sub
+    ),
+  }));
 }
 
 export const profileManager = {
@@ -160,9 +244,15 @@ export const profileManager = {
     return !!loadProfile();
   },
 
+  /**
+   * 创建档案（v6.0）
+   * @param nickname 用户昵称
+   * @param directions 诊断识别出的 1-3 个认知大方向 + 子领域树
+   * @param difficultyLevel 初始难度（默认 L1）
+   */
   createProfile(
     nickname: string,
-    exposure: Record<string, number>,
+    directions: CognitiveDirection[],
     difficultyLevel: DifficultyLevel = "L1"
   ): CognitiveProfile {
     const today = new Date().toISOString().slice(0, 10);
@@ -171,12 +261,11 @@ export const profileManager = {
       userId: `user_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
       nickname,
       createdAt: new Date().toISOString(),
-      initialExposure: { ...exposure },
-      currentExposure: { ...exposure },
-      exposureSnapshots: [{ date: today, exposure: { ...exposure } }],
+      directions: directions || [],
+      exposureSnapshots: [{ date: today, directions: directions || [] }],
       difficultyLevel,
       impactHistory: [],
-      impactAggregate: { totalReads: 0, totalDimensions: [], avgImpact: 0 },
+      impactAggregate: { totalReads: 0, totalSubfields: 0, avgImpact: 0 },
       milestones: [],
       readHistory: [],
       coachMemory: { lastReviewedAt: "", keyInsights: [] },
@@ -185,18 +274,22 @@ export const profileManager = {
     return profile;
   },
 
-  updateExposure(exposure: Record<string, number>): CognitiveProfile | null {
+  /**
+   * 更新方向树（v6.0：替代旧的 updateExposure）
+   * @param directions 新的方向树（含子领域接触标注）
+   */
+  updateDirections(directions: CognitiveDirection[]): CognitiveProfile | null {
     const profile = loadProfile();
     if (!profile) return null;
-    profile.currentExposure = { ...exposure };
+    profile.directions = directions;
 
     // 记录暴露快照（每天最多一条，更新当天的）
     const today = new Date().toISOString().slice(0, 10);
     const existingIdx = profile.exposureSnapshots.findIndex((s) => s.date === today);
     if (existingIdx >= 0) {
-      profile.exposureSnapshots[existingIdx].exposure = { ...exposure };
+      profile.exposureSnapshots[existingIdx].directions = directions;
     } else {
-      profile.exposureSnapshots.push({ date: today, exposure: { ...exposure } });
+      profile.exposureSnapshots.push({ date: today, directions });
       // 快照上限 90 天
       if (profile.exposureSnapshots.length > 90) {
         profile.exposureSnapshots = profile.exposureSnapshots.slice(-90);
@@ -207,17 +300,25 @@ export const profileManager = {
     return profile;
   },
 
-  addReadContent(contentId: string, dimensionId: string): CognitiveProfile | null {
+  /**
+   * 标记某子领域已读（v6.0：替代旧的 addReadContent(dimensionId)）
+   * @param contentId 内容 ID（用于去重）
+   * @param subfieldId 子领域 ID
+   */
+  addReadContent(contentId: string, subfieldId: string): CognitiveProfile | null {
     const profile = loadProfile();
     if (!profile) return null;
     if (!profile.readHistory.includes(contentId)) {
       profile.readHistory.push(contentId);
     }
-    profile.currentExposure[dimensionId] = (profile.currentExposure[dimensionId] || 0) + 1;
+    profile.directions = bumpSubfieldExposure(profile.directions, subfieldId);
     saveProfile(profile);
     return profile;
   },
 
+  /**
+   * 记录冲击自评（v6.0：ImpactRecord 使用 directionId/subfieldId）
+   */
   recordImpact(record: Omit<ImpactRecord, "timestamp">): CognitiveProfile | null {
     const profile = loadProfile();
     if (!profile) return null;
@@ -229,25 +330,17 @@ export const profileManager = {
 
     // 上限 100 条：超出时归档到 aggregate
     if (profile.impactHistory.length > 100) {
-      const archived = profile.impactHistory.slice(0, profile.impactHistory.length - 100);
       profile.impactHistory = profile.impactHistory.slice(-100);
-
-      // 更新聚合统计
-      profile.impactAggregate.totalReads += archived.length;
-      profile.impactAggregate.totalDimensions = Array.from(new Set([
-        ...profile.impactAggregate.totalDimensions,
-        ...archived.map((r) => r.dimensionId),
-      ]));
     }
 
-    // 重新计算聚合
+    // 重新计算聚合（v6.0：基于 subfieldId）
     const allRecords = profile.impactHistory;
-    profile.impactAggregate.totalReads = profile.impactAggregate.totalReads - (profile.impactAggregate.totalReads - allRecords.length > 0 ? 0 : 0) + 0;
-    // 简化：totalReads = 历史归档数 + 当前数
     profile.impactAggregate.avgImpact = allRecords.length > 0
       ? allRecords.reduce((s, r) => s + r.impactScore, 0) / allRecords.length
       : 0;
-    profile.impactAggregate.totalDimensions = Array.from(new Set(allRecords.map((r) => r.dimensionId)));
+    profile.impactAggregate.totalSubfields = Array.from(new Set(allRecords.map((r) => r.subfieldId))).length;
+    // totalReads = 当前 impactHistory 数（归档的已丢失，简化处理）
+    profile.impactAggregate.totalReads = allRecords.length;
 
     saveProfile(profile);
     return profile;
@@ -277,7 +370,7 @@ export const profileManager = {
     return profile;
   },
 
-  /** PRD 承诺：教练记忆 — 添加关键洞察 */
+  /** 教练记忆：添加关键洞察 */
   addKeyInsight(insight: string): CognitiveProfile | null {
     const profile = loadProfile();
     if (!profile) return null;
@@ -291,21 +384,21 @@ export const profileManager = {
     return profile;
   },
 
-  /** PRD 承诺：认知指纹 */
+  /** 认知指纹 */
   getFingerprint(): CognitiveFingerprint | null {
     const profile = loadProfile();
     if (!profile) return null;
     return generateFingerprint(profile);
   },
 
-  /** PRD 承诺：数据导出 */
+  /** 数据导出 */
   exportProfile(): string {
     const profile = loadProfile();
     if (!profile) throw new Error("无档案可导出");
     return JSON.stringify(profile, null, 2);
   },
 
-  /** PRD 承诺：数据导入 */
+  /** 数据导入（含 schema 迁移） */
   importProfile(json: string): CognitiveProfile | null {
     try {
       const data = JSON.parse(json);
@@ -330,18 +423,24 @@ export const profileManager = {
     localStorage.removeItem(PROFILE_KEY);
   },
 
+  /**
+   * 转换为 API 请求格式（v6.0）
+   * 后端 /api/agent/* 路由期望以下字段：
+   * - challenge: { directions, readHistory, impactHistory, difficultyLevel }
+   * - assess:    { directions, profile: { ... } }
+   * - coach:     { profile: { directions, impactHistory, difficultyLevel, ... } }
+   * - content:   { directionId, subfieldId, directions, difficultyLevel }
+   * - map:       { directions }
+   */
   toApiFormat(profile: CognitiveProfile) {
     return {
-      exposure: profile.currentExposure,
+      directions: profile.directions,
       readHistory: profile.readHistory,
       impactHistory: profile.impactHistory,
       difficultyLevel: profile.difficultyLevel,
-      highExposureFields: Object.entries(profile.currentExposure)
-        .filter(([_, v]) => v >= 200)
-        .map(([k]) => k),
-      totalReads: profile.impactAggregate.totalReads + profile.impactHistory.length,
       milestones: profile.milestones,
       coachMemory: profile.coachMemory,
+      totalReads: profile.impactAggregate.totalReads + profile.impactHistory.length,
     };
   },
 };

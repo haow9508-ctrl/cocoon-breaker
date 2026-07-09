@@ -1,25 +1,29 @@
-// ===== 成长曲线页 =====
-// 4 个统计卡片 + SVG 双轴曲线（覆盖维度数 + 平均冲击分）+ 最近里程碑
+// ===== 成长曲线页 v6.0 =====
+// v6.0：从"覆盖维度数（0-24）"适配为"覆盖子领域数（无上限，动态方向树）"
+// 4 个统计卡片 + SVG 双轴曲线（覆盖子领域数 + 平均冲击分）+ 最近里程碑
 
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { BookOpen, Compass, Zap, Gauge, Loader2, Trophy } from "lucide-react";
 import { getGrowthData } from "../lib/apiClient";
+import { useAppStore } from "../store/useAppStore";
 import { cn } from "@/lib/utils";
 
+// v6.0：weeklyData.dimensions → weeklyData.subfields
 interface WeeklyPoint {
   week: string;
   reads: number;
   avgImpact: number;
-  dimensions: string[];
+  subfields: string[];
 }
 
 interface GrowthData {
   weeklyData: WeeklyPoint[];
   milestones: Array<{ id: string; type: string; description: string; unlockedAt: string }>;
+  // v6.0：stats.totalDimensions → stats.totalSubfields
   stats: {
     totalReads: number;
-    totalDimensions: number;
+    totalSubfields: number;
     avgImpact: number;
     difficultyLevel: "L1" | "L2" | "L3";
   };
@@ -51,6 +55,7 @@ function smoothPath(points: { x: number; y: number }[]): string {
 }
 
 export function GrowthPage() {
+  const profile = useAppStore((s) => s.profile);
   const [data, setData] = useState<GrowthData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -97,9 +102,18 @@ export function GrowthPage() {
   const recentMilestones = [...milestones].reverse().slice(0, 3);
   const hasEnoughData = weeklyData.length >= 2;
 
+  // v6.0：覆盖子领域数（无固定上限，参考 profile.directions 总子领域数）
+  const totalSubfieldsInTree = (profile?.directions || []).reduce(
+    (sum, d) => sum + (d.subfields?.length || 0), 0
+  );
+  // 显示分母：若方向树为空（旧档案迁移后），仅显示分子
+  const coverageDisplay = totalSubfieldsInTree > 0
+    ? `${stats.totalSubfields}/${totalSubfieldsInTree}`
+    : `${stats.totalSubfields}`;
+
   const statCards = [
     { label: "总阅读数", value: stats.totalReads, icon: BookOpen, accent: "text-white/80" },
-    { label: "覆盖维度", value: `${stats.totalDimensions}/24`, icon: Compass, accent: "text-blue-300" },
+    { label: "覆盖子领域", value: coverageDisplay, icon: Compass, accent: "text-blue-300" },
     { label: "平均冲击分", value: stats.avgImpact.toFixed(1), icon: Zap, accent: "text-red-300" },
     { label: "当前难度", value: stats.difficultyLevel, icon: Gauge, accent: "text-white/80", isLevel: true },
   ];
@@ -113,7 +127,7 @@ export function GrowthPage() {
           成长曲线
         </div>
         <h1 className="font-serif-cn mt-3 text-3xl font-semibold tracking-wide sm:text-4xl">
-          你的认知边界外扩轨迹
+          你的方向内拓展轨迹
         </h1>
       </motion.header>
 
@@ -153,7 +167,7 @@ export function GrowthPage() {
           <h2 className="font-serif-cn text-lg font-medium">每周成长</h2>
           <div className="flex items-center gap-4 text-[11px]">
             <span className="flex items-center gap-1.5 text-white/55">
-              <span className="h-2 w-2 rounded-full bg-blue-400" /> 覆盖维度
+              <span className="h-2 w-2 rounded-full bg-blue-400" /> 覆盖子领域
             </span>
             <span className="flex items-center gap-1.5 text-white/55">
               <span className="h-2 w-2 rounded-full bg-red-400" /> 冲击分
@@ -162,7 +176,7 @@ export function GrowthPage() {
         </div>
 
         {hasEnoughData ? (
-          <GrowthChart weeklyData={weeklyData} />
+          <GrowthChart weeklyData={weeklyData} maxSubfields={Math.max(totalSubfieldsInTree, 10)} />
         ) : (
           <div className="flex flex-col items-center justify-center py-16 text-center">
             <Compass className="h-8 w-8 text-white/20" strokeWidth={1.25} />
@@ -203,8 +217,8 @@ export function GrowthPage() {
   );
 }
 
-// SVG 双轴曲线图
-function GrowthChart({ weeklyData }: { weeklyData: WeeklyPoint[] }) {
+// SVG 双轴曲线图（v6.0：Y1 轴改为覆盖子领域数，无固定 24 上限）
+function GrowthChart({ weeklyData, maxSubfields }: { weeklyData: WeeklyPoint[]; maxSubfields: number }) {
   const W = 720;
   const H = 280;
   const PAD = { top: 20, right: 20, bottom: 36, left: 36 };
@@ -214,12 +228,14 @@ function GrowthChart({ weeklyData }: { weeklyData: WeeklyPoint[] }) {
   const n = weeklyData.length;
   const xFor = (i: number) => PAD.left + (n === 1 ? innerW / 2 : (i / (n - 1)) * innerW);
 
-  // Y1：覆盖维度数（0-24）
-  const y1For = (val: number) => PAD.top + innerH - (Math.min(val, 24) / 24) * innerH;
+  // v6.0：Y1 轴改为覆盖子领域数（0 ~ maxSubfields，动态上限）
+  const yMax = Math.max(maxSubfields, 10);
+  const y1For = (val: number) => PAD.top + innerH - (Math.min(val, yMax) / yMax) * innerH;
   // Y2：平均冲击分（1-5）
   const y2For = (val: number) => PAD.top + innerH - ((val - 1) / 4) * innerH;
 
-  const coveragePoints = weeklyData.map((d, i) => ({ x: xFor(i), y: y1For(d.dimensions.length) }));
+  // v6.0：weeklyData.dimensions → weeklyData.subfields
+  const coveragePoints = weeklyData.map((d, i) => ({ x: xFor(i), y: y1For(d.subfields.length) }));
   const impactPoints = weeklyData.map((d, i) => ({ x: xFor(i), y: y2For(d.avgImpact) }));
 
   const coveragePath = smoothPath(coveragePoints);
@@ -228,13 +244,20 @@ function GrowthChart({ weeklyData }: { weeklyData: WeeklyPoint[] }) {
     ? `${coveragePath} L ${coveragePoints[coveragePoints.length - 1].x} ${PAD.top + innerH} L ${coveragePoints[0].x} ${PAD.top + innerH} Z`
     : "";
 
+  // Y1 轴刻度：根据 yMax 动态生成
+  const y1Ticks: number[] = [];
+  const tickCount = 5;
+  for (let i = 0; i <= tickCount; i++) {
+    y1Ticks.push(Math.round((yMax * i) / tickCount));
+  }
+
   return (
     <div className="w-full overflow-x-auto">
       <svg viewBox={`0 0 ${W} ${H}`} className="w-full min-w-[560px]" preserveAspectRatio="xMidYMid meet">
         <defs>
           <linearGradient id="coverageFill" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.18" />
-            <stop offset="100%" stopColor="#3b82f6" stopOpacity="0" />
+            <stop offset="0%" stopColor="#3b82f6" stopOpacity={0.18} />
+            <stop offset="100%" stopColor="#3b82f6" stopOpacity={0} />
           </linearGradient>
         </defs>
 
@@ -251,8 +274,8 @@ function GrowthChart({ weeklyData }: { weeklyData: WeeklyPoint[] }) {
           />
         ))}
 
-        {/* Y 轴左：覆盖维度刻度 */}
-        {[0, 6, 12, 18, 24].map((v) => (
+        {/* Y 轴左：覆盖子领域数刻度 */}
+        {y1Ticks.map((v) => (
           <text key={`y1-${v}`} x={PAD.left - 8} y={y1For(v) + 3} textAnchor="end" className="fill-white/30 text-[10px]">
             {v}
           </text>
@@ -271,7 +294,7 @@ function GrowthChart({ weeklyData }: { weeklyData: WeeklyPoint[] }) {
           </text>
         ))}
 
-        {/* 覆盖维度：面积 + 曲线 */}
+        {/* 覆盖子领域：面积 + 曲线 */}
         {coverageArea && <path d={coverageArea} fill="url(#coverageFill)" />}
         <path d={coveragePath} fill="none" stroke="#3b82f6" strokeWidth={2} strokeLinecap="round" />
         {coveragePoints.map((p, i) => (

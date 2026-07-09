@@ -1,4 +1,5 @@
-// ===== 里程碑墙页 =====
+// ===== 里程碑墙页 v6.0 =====
+// v6.0：里程碑从"维度解锁"改为"子领域解锁/方向内覆盖"
 // 展示所有里程碑（已解锁/未解锁），卡片式 + 入场动画
 
 import { motion } from "framer-motion";
@@ -7,6 +8,7 @@ import { useAppStore } from "../store/useAppStore";
 import { cn } from "@/lib/utils";
 
 // 里程碑完整目录（按 type 索引）
+// v6.0：dimension_unlocked → first_contact（首次拓展子领域）
 interface MilestoneDef {
   type: string;
   title: string;
@@ -15,11 +17,11 @@ interface MilestoneDef {
 }
 
 const MILESTONE_CATALOG: MilestoneDef[] = [
-  { type: "first_contact", title: "初次接触", description: "完成第一次认知挑战", icon: Sparkles },
-  { type: "streak_7", title: "坚持七日", description: "连续 7 天进行阅读", icon: Flame },
-  { type: "streak_30", title: "月度深耕", description: "连续 30 天保持阅读", icon: Calendar },
+  { type: "first_contact", title: "首次拓展", description: "完成第一次方向内子领域拓展", icon: Sparkles },
+  { type: "streak_7", title: "坚持七日", description: "完成 7 次方向内拓展", icon: Flame },
+  { type: "streak_30", title: "月度深耕", description: "完成 30 次方向内拓展", icon: Calendar },
   { type: "level_up", title: "难度进阶", description: "挑战难度提升一个等级", icon: TrendingUp },
-  { type: "dimension_unlocked", title: "维度解锁", description: "首次探索某个全新维度", icon: Compass },
+  { type: "subfield_coverage", title: "子领域覆盖", description: "覆盖 5 个以上方向内子领域", icon: Compass },
   { type: "high_impact", title: "高冲击时刻", description: "给出 5 星冲击自评", icon: Zap },
 ];
 

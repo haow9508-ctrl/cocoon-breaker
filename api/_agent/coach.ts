@@ -1,13 +1,17 @@
-// ===== ⑦ 对话层 v4.0 — 认知成长教练 =====
+// ===== ⑦ 对话层 v6.0 — 认知成长教练 =====
 // 使用方法论：苏格拉底追问 / 类比桥接 / 反事实推演 / 长期记忆
+// v6.0：从"扩展跨维度盲区"改为"在用户既定认知方向内拓展未接触子领域"
 
 import { chatCompletion, buildCoachContext, ChatMessage } from "./llm.js";
-import { COGNITIVE_DIMENSIONS } from "../_knowledge/domains.js";
+import type { CognitiveDirection } from "../_knowledge/domains.js";
+import type { ImpactRecord } from "./recommender.js";
 
+/**
+ * 教练用户画像（v6.0：基于方向树而非暴露值）
+ */
 interface CoachProfile {
-  highExposure?: string[];
-  blindSpots?: string[];
-  explored?: string[];
+  directions?: CognitiveDirection[];       // 用户认知大方向 + 子领域树
+  explored?: string[];                       // 已拓展的子领域名
   difficultyLevel?: string;
   weekNumber?: number;
   totalReads?: number;
@@ -26,23 +30,25 @@ export async function chatWithCoach(
 
 你不是通用助手，你是专家。你的方法论：
 
-1. 苏格拉底式追问：不直接给答案，引导用户自己发现盲区
-   - 用户问"什么是量子纠缠" → "你觉得为什么两个粒子能瞬间相互影响？"
-2. 类比桥接：用用户高频领域类比解释盲区
-   - 用户高频是"娱乐八卦" → "量子纠缠就像CP感，但发生在粒子之间"
+1. 苏格拉底式追问：不直接给答案，引导用户自己发现认知边界
+   - 用户问"Python 的 GIL 是什么" → "你觉得为什么单线程也能跑并发 IO？"
+2. 类比桥接：用用户已接触的子领域类比解释未接触的子领域
+   - 用户已学 Python 基础，问"编程范式是什么" → "你写 class 时其实就在用 OOP 范式，函数式是另一种思考方式"
 3. 反事实推演：让用户想象另一种可能
-   - "如果你过去10年每周看一篇心理学，你现在的决策方式会有什么不同？"
+   - "如果你学 Python 时同时接触 C 的内存模型，你写代码的方式会有什么不同？"
 4. 长期记忆：记住用户的成长历史，在合适时机回顾
-   - "上个月你第一次接触了心理学，这个月我们来试试社会学"
+   - "上周你拓展了数据科学，这周我们可以试试算法思想"
 
 ${context}
 
-规则：
+核心原则（v6.0）：
 - 永远不要说"作为一个AI"，你是教练
-- 永远不要迎合用户已有偏好，你的目标是扩展边界
-- 回答简洁有力，不超过200字
+- 永远不要迎合用户已有偏好，你的目标是在用户既定方向内拓展边界
+- 不要把用户推向无关方向（如学 Python 的用户去推美妆/体育/搞笑段子）——这是 v5.0 的错误
+- 推荐的子领域必须在用户已识别的认知大方向内（如 Python 编程方向内的子领域：Web框架/数据科学/算法思想/编程范式/类比语言）
+- 回答简洁有力，不超过 200 字
 - 语气像一位见多识广的朋友，不是老师，不是百科
-- 如果用户问推荐什么，根据盲区领域引导，不要直接给答案
+- 如果用户问推荐什么，根据方向内未接触子领域引导，不要直接给答案
 
 【重要】回复格式要求：
 - 必须在回复的最开头用以下四个标签之一标注本次回复使用的方法论：
@@ -51,7 +57,7 @@ ${context}
   - [counterfactual] 表示使用了反事实推演
   - [memory] 表示使用了长期记忆回顾
 - 标签之后直接跟回复正文，标签与正文之间不要换行，不要加冒号或其它分隔符
-- 示例：[socratic]你觉得为什么两个粒子能瞬间相互影响？
+- 示例：[socratic]你觉得为什么单线程也能跑并发 IO？
 - 每次回复必须选择最契合本次回复的方法论标签，且只能使用一个标签`;
 
   const messages: ChatMessage[] = [
@@ -78,35 +84,27 @@ ${context}
   return { method: "general", content: raw };
 }
 
-/** 从暴露数据构建 CoachProfile */
-export function buildProfileFromExposure(
-  exposure: Map<string, number>,
+/**
+ * 从方向树构建 CoachProfile（v6.0：替代旧的 buildProfileFromExposure）
+ * - directions：用户认知大方向 + 子领域树
+ * - explored：从 impactHistory 提取已拓展的子领域名
+ */
+export function buildProfileFromDirections(
+  directions: CognitiveDirection[],
   difficultyLevel: string = "L1",
-  impactHistory: Array<{ dimensionId: string; impactScore: number; title: string }> = [],
+  impactHistory: ImpactRecord[] = [],
   totalReads: number = 0
 ): CoachProfile {
-  const sorted = Array.from(exposure.entries()).sort((a, b) => b[1] - a[1]);
-
-  const highExposure = sorted
-    .filter(([_, c]) => c >= 200)
-    .slice(0, 5)
-    .map(([id]) => COGNITIVE_DIMENSIONS.find((d) => d.id === id)?.name || id);
-
-  const blindSpots = sorted
-    .filter(([_, c]) => c < 30)
-    .slice(0, 8)
-    .map(([id]) => COGNITIVE_DIMENSIONS.find((d) => d.id === id)?.name || id);
-
-  const explored = Array.from(new Set(impactHistory.map((r) => r.dimensionId)))
-    .map((id) => COGNITIVE_DIMENSIONS.find((d) => d.id === id)?.name || id);
+  // 已拓展的子领域名：从 impactHistory 中提取 subfieldName 去重
+  const explored = Array.from(new Set(impactHistory.map((r) => r.subfieldName).filter(Boolean)));
 
   const recentImpacts = impactHistory.slice(-5).map((r) => r.impactScore);
 
+  // 周数计算：以 2026-07-07 为起点
   const weekNumber = Math.max(1, Math.ceil((Date.now() - Date.parse("2026-07-07")) / (7 * 24 * 60 * 60 * 1000)));
 
   return {
-    highExposure,
-    blindSpots,
+    directions,
     explored,
     difficultyLevel,
     weekNumber,

@@ -1,6 +1,7 @@
-// ===== RAG Client v4.2 =====
-// 调用 Python FastAPI 后端（:8000）的 RAG 检索
-// 抗 GEO 核心：内容来自 arXiv/Wikipedia 等边缘信息源，绕过 LLM 训练数据偏见
+// ===== RAG Client v5.0 =====
+// 调用 Python FastAPI 后端（:8000）的实时互联网检索
+// 架构：Bing Web Search API 实时检索 + Qdrant 缓存层（非固定知识库）
+// 服务高价值人群：播客、访谈、认知类内容、跨领域博客
 
 const RAG_BASE = process.env.RAG_BASE_URL || "http://localhost:8000";
 
@@ -9,7 +10,7 @@ export interface RagResult {
   title: string;
   description: string;
   source: string;
-  source_type: "arxiv" | "wikipedia" | "unknown";
+  source_type: "bing" | "unknown";  // v5.0：内容来自 Bing 实时检索
   url: string;
   read_time_minutes: number;
   dimension_id: string;
