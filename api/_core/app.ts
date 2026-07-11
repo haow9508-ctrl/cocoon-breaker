@@ -1,6 +1,7 @@
 /**
  * API Server - 茧房爆破器 反推荐引擎
  * Agent-powered cognitive expansion platform
+ * 生产模式：Express 同时托管 API 路由 + 静态前端（dist/）
  */
 
 import express, {
@@ -10,6 +11,7 @@ import express, {
 } from 'express'
 import cors from 'cors'
 import path from 'path'
+import fs from 'fs'
 import dotenv from 'dotenv'
 import { fileURLToPath } from 'url'
 import agentRoutes from '../_routes/agent.js'
@@ -47,6 +49,25 @@ app.use(
 )
 
 /**
+ * 生产模式：托管前端静态文件（vite build 输出到 dist/）
+ * dist/ 位于项目根目录，相对于 api/_core/ 向上两级
+ */
+const distPath = path.resolve(__dirname, '../../dist')
+if (fs.existsSync(distPath)) {
+  app.use(express.static(distPath))
+  // SPA fallback：非 /api 路由返回 index.html（支持前端路由刷新）
+  app.get('*', (req: Request, res: Response) => {
+    // 排除 API 路由
+    if (req.path.startsWith('/api/')) {
+      res.status(404).json({ success: false, error: 'API not found', path: req.path })
+      return
+    }
+    res.sendFile(path.join(distPath, 'index.html'))
+  })
+  console.log(`[Server] 静态前端托管已启用: ${distPath}`)
+}
+
+/**
  * error handler middleware
  */
 app.use((error: Error, req: Request, res: Response, next: NextFunction) => {
@@ -59,14 +80,16 @@ app.use((error: Error, req: Request, res: Response, next: NextFunction) => {
 })
 
 /**
- * 404 handler
+ * 404 handler（仅开发模式，dist 不存在时）
  */
-app.use((req: Request, res: Response) => {
-  res.status(404).json({
-    success: false,
-    error: 'API not found',
-    path: req.path,
+if (!fs.existsSync(distPath)) {
+  app.use((req: Request, res: Response) => {
+    res.status(404).json({
+      success: false,
+      error: 'API not found',
+      path: req.path,
+    })
   })
-})
+}
 
 export default app

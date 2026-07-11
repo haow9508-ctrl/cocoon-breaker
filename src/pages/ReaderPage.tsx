@@ -7,6 +7,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Star, Clock, ArrowLeft, Loader2, Send, Sparkles, TrendingUp, Trophy, Compass } from "lucide-react";
 import { getContentDetail, submitAssessment, type ChallengeItem } from "../lib/apiClient";
+import { profileManager } from "../lib/profileManager";
 import { cn } from "@/lib/utils";
 
 interface AssessResult {
@@ -42,10 +43,19 @@ export function ReaderPage() {
     let alive = true;
     (async () => {
       if (!directionId || !subfieldId) return;
+      // v6.1：优先从今日挑战缓存中按 (directionId, subfieldId) 直接读取，避免二次 API 调用导致内容不一致或失败
+      const cached = profileManager.findChallengeBySubfield(directionId, subfieldId);
+      if (cached) {
+        if (alive) {
+          setItem(cached as ChallengeItem);
+          setLoading(false);
+        }
+        return;
+      }
+      // 缓存未命中（如跨日进入、直接通过 URL 访问）：回退到 API 动态生成
       setLoading(true);
       setError("");
       try {
-        // v6.0：getContentDetail 接收 directionId + subfieldId
         const res = await getContentDetail(directionId, subfieldId);
         if (alive) setItem(res || null);
       } catch (e: any) {

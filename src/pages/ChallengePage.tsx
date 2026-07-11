@@ -7,6 +7,7 @@ import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Clock, ArrowUpRight, Loader2, Eye, CheckCircle2, BookOpen, RotateCcw, Compass } from "lucide-react";
 import { getChallenge, type ChallengeItem, type ChallengeResult } from "../lib/apiClient";
+import { profileManager } from "../lib/profileManager";
 import { useAppStore } from "../store/useAppStore";
 import { cn } from "@/lib/utils";
 
@@ -36,11 +37,30 @@ export function ChallengePage() {
   useEffect(() => {
     let alive = true;
     (async () => {
+      // v6.1：先读今日挑战缓存，命中且日期为今天则跳过 API 调用
+      const cached = profileManager.getTodayChallenge();
+      if (cached && cached.items?.length > 0) {
+        if (alive) {
+          setData(cached as ChallengeResult);
+          setLoading(false);
+        }
+        return;
+      }
       setLoading(true);
       setError("");
       try {
         const res = await getChallenge();
-        if (alive) setData(res);
+        if (alive) {
+          setData(res);
+          // 缓存今日挑战，跨页面复用，保证 ReaderPage 内容一致
+          if (res.items?.length > 0) {
+            profileManager.setTodayChallenge({
+              items: res.items,
+              unexploredCount: res.unexploredCount,
+              selectedSubfields: res.selectedSubfields,
+            });
+          }
+        }
       } catch (e: any) {
         if (alive) setError(e.message || "加载挑战失败");
       } finally {

@@ -95,6 +95,37 @@ export interface CognitiveProfile {
     lastReviewedAt: string;
     keyInsights: string[];
   };
+
+  // 今日挑战缓存：当天进入挑战页直接复用，避免重复生成 + 保证详情页内容一致
+  todayChallenge: {
+    date: string; // ISO date (yyyy-mm-dd) — 用于判断缓存是否过期
+    result: TodayChallengeCache;
+  } | null;
+}
+
+// 挑战条目快照（与 apiClient.ChallengeItem 字段对齐，用于本地缓存）
+export interface ChallengeItemSnapshot {
+  id: string;
+  directionId: string;
+  directionName: string;
+  subfieldId: string;
+  subfieldName: string;
+  title: string;
+  why: string;
+  description: string;
+  source: string;
+  readTimeMinutes: number;
+  difficultyLevel: "L1" | "L2" | "L3";
+  coachGuidance: string;
+  sourceType?: "bing" | "deepseek_fallback";
+  sourceUrl?: string;
+}
+
+// 今日挑战缓存对象（与 apiClient.ChallengeResult 对齐）
+export interface TodayChallengeCache {
+  items: ChallengeItemSnapshot[];
+  unexploredCount: number;
+  selectedSubfields: string[];
 }
 
 const PROFILE_KEY = "cocoon_profile_v6";
@@ -147,6 +178,8 @@ function migrateProfile(data: any): CognitiveProfile {
     if (!Array.isArray(data.milestones)) data.milestones = [];
     if (!Array.isArray(data.readHistory)) data.readHistory = [];
     if (!Array.isArray(data.impactHistory)) data.impactHistory = [];
+    // v6.1：新增 todayChallenge 缓存字段
+    if (!data.todayChallenge) data.todayChallenge = null;
   }
 
   return data as CognitiveProfile;
@@ -269,6 +302,7 @@ export const profileManager = {
       milestones: [],
       readHistory: [],
       coachMemory: { lastReviewedAt: "", keyInsights: [] },
+      todayChallenge: null,
     };
     saveProfile(profile);
     return profile;
@@ -389,6 +423,49 @@ export const profileManager = {
     const profile = loadProfile();
     if (!profile) return null;
     return generateFingerprint(profile);
+  },
+
+  /**
+   * 获取今日挑战缓存（v6.1）
+   * - 若 todayChallenge.date 等于今天，返回完整 result（items+unexploredCount+selectedSubfields）；否则返回 null
+   * - 跨日自动失效（返回 null 由调用方重新拉取）
+   */
+  getTodayChallenge(): TodayChallengeCache | null {
+    const profile = loadProfile();
+    if (!profile?.todayChallenge) return null;
+    const today = new Date().toISOString().slice(0, 10);
+    if (profile.todayChallenge.date !== today) return null;
+    return profile.todayChallenge.result || null;
+  },
+
+  /** 保存今日挑战缓存（v6.1） */
+  setTodayChallenge(result: TodayChallengeCache): CognitiveProfile | null {
+    const profile = loadProfile();
+    if (!profile) return null;
+    const today = new Date().toISOString().slice(0, 10);
+    profile.todayChallenge = { date: today, result };
+    saveProfile(profile);
+    return profile;
+  },
+
+  /**
+   * 按 ID 在今日挑战缓存中查找单条挑战详情（v6.1）
+   * 用于 ReaderPage 直接复用挑战列表中的内容，跳过二次 API 调用
+   */
+  findChallengeById(challengeId: string): ChallengeItemSnapshot | null {
+    const cached = this.getTodayChallenge();
+    if (!cached) return null;
+    return cached.items.find((it) => it.id === challengeId) || null;
+  },
+
+  /**
+   * 按 directionId + subfieldId 在今日挑战缓存中查找（v6.1）
+   * 用于路由 /read/:directionId/:subfieldId 的兼容查找
+   */
+  findChallengeBySubfield(directionId: string, subfieldId: string): ChallengeItemSnapshot | null {
+    const cached = this.getTodayChallenge();
+    if (!cached) return null;
+    return cached.items.find((it) => it.directionId === directionId && it.subfieldId === subfieldId) || null;
   },
 
   /** 数据导出 */
