@@ -40,11 +40,8 @@ CACHE_TTL_HOURS = int(os.getenv("CACHE_TTL_HOURS", "24"))  # 默认 24 小时
 HOST = os.getenv("HOST", "0.0.0.0")
 PORT = int(os.getenv("PORT", "8000"))
 
-# ---- CORS 配置：允许 Node Express 中间层 (:3001) 调用 ----
-CORS_ORIGINS = [
-    "http://localhost:3001",
-    "http://127.0.0.1:3001",
-]
+# ---- CORS 配置：生产环境允许所有来源（Node Express 服务端调用，无安全风险）----
+CORS_ORIGINS = os.getenv("CORS_ORIGINS", "*").split(",")
 
 # 注：不再使用固定 24 维度模型（COGNITIVE_DIMENSIONS 已移除）
 # 改为"认知大方向 + 方向内子领域"动态模型：
