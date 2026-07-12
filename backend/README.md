@@ -1,15 +1,16 @@
 # 茧房爆破器 RAG 后端
 
 认知扩展应用的核心检索层，运行在 `:8000`，供 Node Express 中间层（`:3001`）调用。
-通过接入 arXiv / Wikipedia 等边缘信息源，用向量检索 + BM25 混合检索对抗 GEO（Generative Engine Optimization）污染。
+通过 Bing/Tavily 实时互联网搜索获取播客、访谈、认知类内容，用 BM25 + Vector 混合检索对抗 GEO（Generative Engine Optimization）污染。
+Qdrant 作为实时检索缓存层（24 小时 TTL），非持久化知识库。
 
 ## 技术栈
 
 - FastAPI + uvicorn
-- qdrant-client（向量数据库，开发期内存模式，生产切 Qdrant Cloud）
+- qdrant-client（向量数据库，实时检索缓存层，24h TTL）
 - sentence-transformers（all-MiniLM-L6-v2，384 维，本地 CPU）
 - rank-bm25（BM25 关键词检索）
-- httpx（arXiv / Wikipedia API）
+- httpx（Bing Web Search API / Tavily 实时搜索）
 - pydantic（数据校验）
 
 ## 启动
@@ -36,19 +37,21 @@ python main.py
 | QDRANT_URL | `:memory:` | 内存模式；生产填 Qdrant Cloud URL |
 | QDRANT_API_KEY | 空 | Qdrant Cloud API Key |
 | EMBEDDING_MODEL | all-MiniLM-L6-v2 | sentence-transformers 模型名 |
-| ARXIV_MAX_RESULTS | 10 | arXiv 单次采集条数 |
-| WIKIPEDIA_MAX_RESULTS | 5 | Wikipedia 单次采集条数 |
+| BING_API_KEY | 空 | Bing Web Search API Key（缺失时降级到纯 DeepSeek） |
+| TAVILY_API_KEY | 空 | Tavily 搜索 API Key（备用） |
+| CACHE_TTL_HOURS | 24 | Qdrant 缓存过期时间（小时） |
 | HOST / PORT | 0.0.0.0 / 8000 | 服务监听地址 |
 
 ## 接口
 
 - `GET /health` — 健康检查
 - `GET /collections` — 查看 Qdrant collection 与 BM25 索引状态
-- `POST /ingest` — 采集入库，body：`{ query, dimension_id }`
+- `POST /ingest` — 采集入库，body：`{ query, direction_id, direction_name, subfield_id, subfield_name }`
 - `POST /retrieve` — 混合检索（RRF 融合），body：`{ query, high_exposure_fields, dimension_id, limit }`
 
 ## 说明
 
 - Qdrant 内存模式重启数据丢失，开发期可接受；生产请切 Qdrant Cloud。
-- arXiv 返回 Atom XML（用 `xml.etree.ElementTree` 解析），Wikipedia 返回 JSON。
-- 24 个认知维度见 `config.COGNITIVE_DIMENSIONS`。
+- 内容来源为 Bing/Tavily 实时互联网搜索，不依赖固定知识库。
+- 检索缓存优先策略：先查 Qdrant 缓存，未命中则触发 Bing 实时搜索，结果写入 Qdrant（24h TTL）。
+- 认知大方向 + 方向内子领域由 LLM 在诊断阶段动态识别，不再使用固定维度模型。

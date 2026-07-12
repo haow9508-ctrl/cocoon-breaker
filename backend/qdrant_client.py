@@ -87,8 +87,9 @@ def ensure_collection() -> None:
 def upsert_points(points: list) -> None:
     """批量写入向量。每个 point 结构: { id, vector, payload }。
 
-    payload 结构: { dimension_id, title, description, source,
-                   source_type (arxiv|wikipedia), url, read_time_minutes }
+    payload 结构: { direction_id, direction_name, subfield_id, subfield_name,
+                   title, description, source, source_type (bing|tavily|unknown),
+                   url, read_time_minutes, ingested_at }
     """
     c = get_client()
     structs = [
