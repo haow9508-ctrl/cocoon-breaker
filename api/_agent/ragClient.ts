@@ -2,8 +2,11 @@
 // 调用 Python FastAPI 后端（:8000）的实时互联网检索
 // 架构：Bing Web Search API 实时检索 + Qdrant 缓存层（非固定知识库）
 // 服务高价值人群：播客、访谈、认知类内容、跨领域博客
+// 生产模式（Railway/Vercel）下 RAG 后端未部署，直接跳过，降级到纯 DeepSeek 生成
 
 const RAG_BASE = process.env.RAG_BASE_URL || "http://localhost:8000";
+// 生产环境（Railway）无 Python 后端，跳过 RAG 调用避免 8s 超时
+const RAG_DISABLED = !process.env.RAG_BASE_URL;
 
 export interface RagResult {
   id: string;
@@ -33,6 +36,11 @@ export async function retrieveFromRag(params: {
   dimensionId: string;
   limit?: number;
 }): Promise<RagResult[]> {
+  // 生产环境无 RAG 后端，直接返回空数组，降级到纯 DeepSeek 生成
+  if (RAG_DISABLED) {
+    return [];
+  }
+
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 8000); // 8s 超时
 
@@ -77,6 +85,7 @@ export async function retrieveFromRag(params: {
  * 触发内容采集（异步，不等待完成）
  */
 export async function ingestToRag(query: string, dimensionId: string): Promise<boolean> {
+  if (RAG_DISABLED) return false;
   try {
     const res = await fetch(`${RAG_BASE}/ingest`, {
       method: "POST",
@@ -95,6 +104,7 @@ export async function ingestToRag(query: string, dimensionId: string): Promise<b
  * 检查 RAG 后端健康状态
  */
 export async function checkRagHealth(): Promise<boolean> {
+  if (RAG_DISABLED) return false;
   try {
     const res = await fetch(`${RAG_BASE}/health`, { method: "GET" });
     return res.ok;
