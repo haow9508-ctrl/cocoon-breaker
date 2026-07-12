@@ -50,22 +50,22 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
   render() {
     if (this.state.hasError) {
       return (
-        <div className="min-h-screen bg-[#0a0a0f] text-white flex flex-col items-center justify-center p-8">
+        <div className="min-h-screen bg-background text-foreground flex flex-col items-center justify-center p-8">
           <h1 className="text-2xl font-bold mb-4">出了点问题</h1>
-          <p className="text-sm text-white/60 mb-2">错误信息：</p>
-          <pre className="text-xs text-white/80 bg-white/5 rounded-lg p-4 max-w-2xl overflow-auto mb-8 whitespace-pre-wrap break-all">
+          <p className="text-sm text-muted-foreground mb-2">错误信息：</p>
+          <pre className="text-xs text-foreground/80 bg-muted rounded-lg p-4 max-w-2xl overflow-auto mb-8 whitespace-pre-wrap break-all">
             {this.state.error?.message || String(this.state.error)}
           </pre>
           <div className="flex gap-4">
             <button
               onClick={this.handleRestart}
-              className="px-4 py-2 bg-white text-[#0a0a0f] rounded-lg font-medium hover:bg-white/90 transition-colors"
+              className="px-4 py-2 bg-primary text-primary-foreground rounded-lg font-medium hover:bg-primary/90 transition-colors"
             >
               重新诊断
             </button>
             <button
               onClick={this.handleRefresh}
-              className="px-4 py-2 bg-white/10 text-white rounded-lg font-medium hover:bg-white/20 transition-colors"
+              className="px-4 py-2 bg-muted text-foreground rounded-lg font-medium hover:bg-muted/80 transition-colors"
             >
               刷新页面
             </button>
@@ -98,7 +98,7 @@ function App() {
   return (
     <ErrorBoundary>
       <BrowserRouter>
-        <div className="min-h-screen bg-[#0a0a0f] text-[#f5f5f7]">
+        <div className="min-h-screen bg-background text-foreground">
           {hasProfile && <NavBar />}
           <Routes>
             <Route path="/scan" element={hasProfile ? <Navigate to="/" /> : <DiagScanPage />} />

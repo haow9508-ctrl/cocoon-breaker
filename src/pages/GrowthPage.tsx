@@ -30,9 +30,9 @@ interface GrowthData {
 }
 
 const DIFF_BADGE: Record<string, string> = {
-  L1: "text-emerald-300 border-emerald-400/30 bg-emerald-400/10",
-  L2: "text-amber-300 border-amber-400/30 bg-amber-400/10",
-  L3: "text-red-300 border-red-400/30 bg-red-400/10",
+  L1: "text-emerald-400/90 border-emerald-500/20 bg-emerald-500/5",
+  L2: "text-amber-400/90 border-amber-500/20 bg-amber-500/5",
+  L3: "text-red-400/90 border-red-500/20 bg-red-500/5",
 };
 
 // 生成平滑 SVG 路径（Catmull-Rom 转 Bezier）
@@ -81,7 +81,7 @@ export function GrowthPage() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center pt-16 text-white/40">
+      <div className="flex min-h-screen flex-col items-center justify-center pt-16 text-muted-foreground/70">
         <Loader2 className="h-6 w-6 animate-spin" />
         <p className="mt-3 text-sm">正在汇总你的成长轨迹…</p>
       </div>
@@ -91,7 +91,7 @@ export function GrowthPage() {
   if (error) {
     return (
       <div className="mx-auto max-w-3xl px-5 pt-32">
-        <div className="rounded-xl border border-red-500/20 bg-red-500/10 p-5 text-sm text-red-300">{error}</div>
+        <div className="rounded-lg border border-red-500/20 bg-red-500/10 p-5 text-sm text-red-400/90">{error}</div>
       </div>
     );
   }
@@ -112,17 +112,17 @@ export function GrowthPage() {
     : `${stats.totalSubfields}`;
 
   const statCards = [
-    { label: "总阅读数", value: stats.totalReads, icon: BookOpen, accent: "text-white/80" },
+    { label: "总阅读数", value: stats.totalReads, icon: BookOpen, accent: "text-foreground/85" },
     { label: "覆盖子领域", value: coverageDisplay, icon: Compass, accent: "text-blue-300" },
     { label: "平均冲击分", value: stats.avgImpact.toFixed(1), icon: Zap, accent: "text-red-300" },
-    { label: "当前难度", value: stats.difficultyLevel, icon: Gauge, accent: "text-white/80", isLevel: true },
+    { label: "当前难度", value: stats.difficultyLevel, icon: Gauge, accent: "text-foreground/85", isLevel: true },
   ];
 
   return (
     <div className="mx-auto max-w-5xl px-5 pb-24 pt-24 sm:px-8">
       {/* 页头 */}
       <motion.header initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
-        <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-white/40">
+        <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-muted-foreground/70">
           <span className="h-1 w-6 bg-white/30" />
           成长曲线
         </div>
@@ -138,12 +138,11 @@ export function GrowthPage() {
             key={s.label}
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: i * 0.06 }}
-            className="rounded-xl border border-white/[0.08] bg-white/[0.02] p-4"
+            className="rounded-lg border border-border bg-card p-4"
           >
             <div className="mb-3 flex items-center justify-between">
               <s.icon className={cn("h-4 w-4", s.accent)} strokeWidth={1.5} />
-              <span className="text-[11px] uppercase tracking-wider text-white/30">{s.label}</span>
+              <span className="text-[11px] uppercase tracking-wider text-muted-foreground/50">{s.label}</span>
             </div>
             {s.isLevel ? (
               <span className={cn("inline-block rounded border px-2 py-0.5 text-sm font-semibold", DIFF_BADGE[stats.difficultyLevel])}>
@@ -160,17 +159,16 @@ export function GrowthPage() {
       <motion.div
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.2 }}
-        className="rounded-2xl border border-white/[0.08] bg-white/[0.02] p-5 sm:p-6"
+        className="rounded-xl border border-border bg-card p-5 sm:p-6"
       >
         <div className="mb-5 flex items-center justify-between">
           <h2 className="font-serif-cn text-lg font-medium">每周成长</h2>
           <div className="flex items-center gap-4 text-[11px]">
-            <span className="flex items-center gap-1.5 text-white/55">
+            <span className="flex items-center gap-1.5 text-muted-foreground">
               <span className="h-2 w-2 rounded-full bg-blue-400" /> 覆盖子领域
             </span>
-            <span className="flex items-center gap-1.5 text-white/55">
-              <span className="h-2 w-2 rounded-full bg-red-400" /> 冲击分
+            <span className="flex items-center gap-1.5 text-muted-foreground">
+              <span className="h-2 w-2 rounded-full bg-orange-400" /> 冲击分
             </span>
           </div>
         </div>
@@ -179,9 +177,9 @@ export function GrowthPage() {
           <GrowthChart weeklyData={weeklyData} maxSubfields={Math.max(totalSubfieldsInTree, 10)} />
         ) : (
           <div className="flex flex-col items-center justify-center py-16 text-center">
-            <Compass className="h-8 w-8 text-white/20" strokeWidth={1.25} />
-            <p className="mt-3 text-sm text-white/45">继续使用以解锁成长曲线</p>
-            <p className="mt-1 text-xs text-white/30">至少需要 2 周数据</p>
+            <Compass className="h-8 w-8 text-muted-foreground/30" strokeWidth={1.25} />
+            <p className="mt-3 text-sm text-muted-foreground/80">继续使用以解锁成长曲线</p>
+            <p className="mt-1 text-xs text-muted-foreground/50">至少需要 2 周数据</p>
           </div>
         )}
       </motion.div>
@@ -191,7 +189,6 @@ export function GrowthPage() {
         <motion.div
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
           className="mt-8"
         >
           <h2 className="font-serif-cn mb-4 text-lg font-medium">最近里程碑</h2>
@@ -199,13 +196,13 @@ export function GrowthPage() {
             {recentMilestones.map((m) => (
               <div
                 key={m.id}
-                className="flex items-center gap-3 rounded-xl border border-white/[0.06] bg-white/[0.02] px-4 py-3"
+                className="flex items-center gap-3 rounded-lg border border-border bg-card px-4 py-3"
               >
-                <span className="flex h-8 w-8 items-center justify-center rounded-full bg-amber-400/10">
-                  <Trophy className="h-3.5 w-3.5 text-amber-300" />
+                <span className="flex h-8 w-8 items-center justify-center rounded-full bg-amber-500/10">
+                  <Trophy className="h-3.5 w-3.5 text-amber-400/90" />
                 </span>
-                <span className="flex-1 text-[13px] text-white/70">{m.description}</span>
-                <span className="text-[11px] text-white/30">
+                <span className="flex-1 text-[13px] text-muted-foreground">{m.description}</span>
+                <span className="text-[11px] text-muted-foreground/50">
                   {new Date(m.unlockedAt).toLocaleDateString("zh-CN", { month: "short", day: "numeric" })}
                 </span>
               </div>
@@ -256,8 +253,8 @@ function GrowthChart({ weeklyData, maxSubfields }: { weeklyData: WeeklyPoint[]; 
       <svg viewBox={`0 0 ${W} ${H}`} className="w-full min-w-[560px]" preserveAspectRatio="xMidYMid meet">
         <defs>
           <linearGradient id="coverageFill" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#3b82f6" stopOpacity={0.18} />
-            <stop offset="100%" stopColor="#3b82f6" stopOpacity={0} />
+            <stop offset="0%" stopColor="#60a5fa" stopOpacity={0.12} />
+            <stop offset="100%" stopColor="#60a5fa" stopOpacity={0} />
           </linearGradient>
         </defs>
 
@@ -269,42 +266,42 @@ function GrowthChart({ weeklyData, maxSubfields }: { weeklyData: WeeklyPoint[]; 
             x2={W - PAD.right}
             y1={PAD.top + t * innerH}
             y2={PAD.top + t * innerH}
-            stroke="rgba(255,255,255,0.06)"
+            stroke="hsl(220 6% 15% / 0.5)"
             strokeWidth={1}
           />
         ))}
 
         {/* Y 轴左：覆盖子领域数刻度 */}
         {y1Ticks.map((v) => (
-          <text key={`y1-${v}`} x={PAD.left - 8} y={y1For(v) + 3} textAnchor="end" className="fill-white/30 text-[10px]">
+          <text key={`y1-${v}`} x={PAD.left - 8} y={y1For(v) + 3} textAnchor="end" className="fill-muted-foreground/50 text-[10px]">
             {v}
           </text>
         ))}
         {/* Y 轴右：冲击分刻度 */}
         {[1, 2, 3, 4, 5].map((v) => (
-          <text key={`y2-${v}`} x={W - PAD.right + 8} y={y2For(v) + 3} textAnchor="start" className="fill-red-300/40 text-[10px]">
+          <text key={`y2-${v}`} x={W - PAD.right + 8} y={y2For(v) + 3} textAnchor="start" className="fill-red-400/40 text-[10px]">
             {v}
           </text>
         ))}
 
         {/* X 轴标签 */}
         {weeklyData.map((d, i) => (
-          <text key={d.week} x={xFor(i)} y={H - 12} textAnchor="middle" className="fill-white/30 text-[10px]">
+          <text key={d.week} x={xFor(i)} y={H - 12} textAnchor="middle" className="fill-muted-foreground/50 text-[10px]">
             {d.week.replace(/^\d+-/, "")}
           </text>
         ))}
 
         {/* 覆盖子领域：面积 + 曲线 */}
         {coverageArea && <path d={coverageArea} fill="url(#coverageFill)" />}
-        <path d={coveragePath} fill="none" stroke="#3b82f6" strokeWidth={2} strokeLinecap="round" />
+        <path d={coveragePath} fill="none" stroke="#60a5fa" strokeWidth={2} strokeLinecap="round" />
         {coveragePoints.map((p, i) => (
-          <circle key={`c-${i}`} cx={p.x} cy={p.y} r={3} fill="#0a0a0f" stroke="#3b82f6" strokeWidth={1.5} />
+          <circle key={`c-${i}`} cx={p.x} cy={p.y} r={3} fill="hsl(220 6% 5%)" stroke="#60a5fa" strokeWidth={1.5} />
         ))}
 
         {/* 冲击分曲线 */}
-        <path d={impactPath} fill="none" stroke="#f87171" strokeWidth={2} strokeLinecap="round" strokeDasharray="0" />
+        <path d={impactPath} fill="none" stroke="#f0a090" strokeWidth={2} strokeLinecap="round" strokeDasharray="0" />
         {impactPoints.map((p, i) => (
-          <circle key={`i-${i}`} cx={p.x} cy={p.y} r={3} fill="#0a0a0f" stroke="#f87171" strokeWidth={1.5} />
+          <circle key={`i-${i}`} cx={p.x} cy={p.y} r={3} fill="hsl(220 6% 5%)" stroke="#f0a090" strokeWidth={1.5} />
         ))}
       </svg>
     </div>

@@ -47,7 +47,7 @@ export function MilestonePage() {
     <div className="mx-auto max-w-5xl px-5 pb-24 pt-24 sm:px-8">
       {/* 页头 */}
       <motion.header initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
-        <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-white/40">
+        <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-muted-foreground/70">
           <span className="h-1 w-6 bg-white/30" />
           里程碑
         </div>
@@ -55,10 +55,10 @@ export function MilestonePage() {
           <h1 className="font-serif-cn text-3xl font-semibold tracking-wide sm:text-4xl">
             里程碑墙
           </h1>
-          <div className="text-right text-sm text-white/45">
-            <span className="font-serif-cn text-2xl font-semibold text-white/80">{unlockedMap.size}</span>
-            <span className="text-white/30"> / {MILESTONE_CATALOG.length}</span>
-            <div className="text-[11px] uppercase tracking-wider text-white/30">已解锁</div>
+          <div className="text-right text-sm text-muted-foreground/80">
+            <span className="font-serif-cn text-2xl font-semibold text-foreground/85">{unlockedMap.size}</span>
+            <span className="text-muted-foreground/50"> / {MILESTONE_CATALOG.length}</span>
+            <div className="text-[11px] uppercase tracking-wider text-muted-foreground/50">已解锁</div>
           </div>
         </div>
       </motion.header>
@@ -74,51 +74,51 @@ export function MilestonePage() {
               key={def.type}
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: i * 0.07, duration: 0.4 }}
+              transition={{ duration: 0.4 }}
               className={cn(
-                "relative overflow-hidden rounded-2xl border p-5 transition-colors",
+                "relative overflow-hidden rounded-xl border p-5 transition-colors",
                 isUnlocked
-                  ? "border-white/[0.1] bg-white/[0.03]"
-                  : "border-white/[0.05] bg-white/[0.01]"
+                  ? "border-border bg-card"
+                  : "border-border bg-card/50"
               )}
             >
               {/* 装饰光晕（仅已解锁） */}
               {isUnlocked && (
-                <div className="pointer-events-none absolute -right-8 -top-8 h-24 w-24 rounded-full bg-amber-400/[0.08] blur-2xl" />
+                <div className="pointer-events-none absolute -right-8 -top-8 h-24 w-24 rounded-full bg-amber-500/[0.06] blur-2xl" />
               )}
 
               <div className="relative flex items-start justify-between">
                 <span
                   className={cn(
-                    "flex h-10 w-10 items-center justify-center rounded-xl border",
+                    "flex h-10 w-10 items-center justify-center rounded-lg border",
                     isUnlocked
-                      ? "border-amber-400/30 bg-amber-400/10 text-amber-300"
-                      : "border-white/[0.06] bg-white/[0.02] text-white/25"
+                      ? "border-amber-500/20 bg-amber-500/5 text-amber-400/90"
+                      : "border-border bg-card/50 text-muted-foreground/40"
                   )}
                 >
                   {isUnlocked ? <Icon className="h-5 w-5" strokeWidth={1.5} /> : <Lock className="h-4 w-4" strokeWidth={1.5} />}
                 </span>
                 {isUnlocked && (
-                  <span className="rounded-full border border-emerald-400/20 bg-emerald-400/10 px-2 py-0.5 text-[10px] font-medium text-emerald-300">
+                  <span className="rounded-full border border-emerald-500/20 bg-emerald-500/5 px-2 py-0.5 text-[10px] font-medium text-emerald-400/90">
                     已解锁
                   </span>
                 )}
               </div>
 
-              <h3 className={cn("font-serif-cn mt-4 text-lg font-medium", isUnlocked ? "text-white/90" : "text-white/40")}>
+              <h3 className={cn("font-serif-cn mt-4 text-lg font-medium", isUnlocked ? "text-foreground" : "text-muted-foreground/70")}>
                 {def.title}
               </h3>
-              <p className={cn("mt-1 text-[13px] leading-relaxed", isUnlocked ? "text-white/50" : "text-white/25")}>
+              <p className={cn("mt-1 text-[13px] leading-relaxed", isUnlocked ? "text-muted-foreground" : "text-muted-foreground/40")}>
                 {def.description}
               </p>
 
-              <div className="mt-4 border-t border-white/[0.06] pt-3">
+              <div className="mt-4 border-t border-border pt-3">
                 {isUnlocked ? (
-                  <span className="text-[11px] text-white/35">
+                  <span className="text-[11px] text-muted-foreground/60">
                     {new Date(unlockedAt!).toLocaleDateString("zh-CN", { year: "numeric", month: "long", day: "numeric" })}
                   </span>
                 ) : (
-                  <span className="text-[11px] text-white/20">尚未达成</span>
+                  <span className="text-[11px] text-muted-foreground/30">尚未达成</span>
                 )}
               </div>
             </motion.div>

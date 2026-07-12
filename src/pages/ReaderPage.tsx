@@ -18,9 +18,9 @@ interface AssessResult {
 }
 
 const DIFF_BADGE: Record<string, string> = {
-  L1: "text-emerald-300 border-emerald-400/30 bg-emerald-400/10",
-  L2: "text-amber-300 border-amber-400/30 bg-amber-400/10",
-  L3: "text-red-300 border-red-400/30 bg-red-400/10",
+  L1: "text-emerald-400/90 border-emerald-500/20 bg-emerald-500/5",
+  L2: "text-amber-400/90 border-amber-500/20 bg-amber-500/5",
+  L3: "text-red-400/90 border-red-500/20 bg-red-500/5",
 };
 
 export function ReaderPage() {
@@ -95,7 +95,7 @@ export function ReaderPage() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center pt-16 text-white/40">
+      <div className="flex min-h-screen flex-col items-center justify-center pt-16 text-muted-foreground/70">
         <Loader2 className="h-6 w-6 animate-spin" />
         <p className="mt-3 text-sm">正在生成挑战内容…</p>
       </div>
@@ -108,7 +108,7 @@ export function ReaderPage() {
         <div className="rounded-xl border border-red-500/20 bg-red-500/10 p-5 text-sm text-red-300">{error}</div>
         <button
           onClick={() => navigate("/")}
-          className="mt-4 flex items-center gap-2 text-sm text-white/60 hover:text-white"
+          className="mt-4 flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
         >
           <ArrowLeft className="h-4 w-4" /> 返回挑战
         </button>
@@ -123,7 +123,7 @@ export function ReaderPage() {
       {/* 返回 */}
       <button
         onClick={() => navigate("/")}
-        className="mb-8 flex items-center gap-1.5 text-[13px] text-white/45 transition hover:text-white/80"
+        className="mb-8 flex items-center gap-1.5 text-[13px] text-muted-foreground/80 transition hover:text-foreground/85"
       >
         <ArrowLeft className="h-4 w-4" /> 返回挑战
       </button>
@@ -136,13 +136,13 @@ export function ReaderPage() {
               <span className={cn("rounded border px-1.5 py-0.5 text-[11px] font-semibold", DIFF_BADGE[item.difficultyLevel])}>
                 {item.difficultyLevel}
               </span>
-              <span className="rounded-full border border-white/10 bg-white/[0.03] px-2 py-0.5 text-[10px] font-medium text-white/55">
+              <span className="rounded-full border border-border bg-card px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
                 {item.directionName}
               </span>
-              <span className="flex items-center gap-1 text-[11px] text-white/45">
+              <span className="flex items-center gap-1 text-[11px] text-muted-foreground/80">
                 <Compass className="h-3 w-3" /> 子领域 · {item.subfieldName}
               </span>
-              <span className="flex items-center gap-1 text-[11px] text-white/35">
+              <span className="flex items-center gap-1 text-[11px] text-muted-foreground/60">
                 <Clock className="h-3 w-3" /> {item.readTimeMinutes} 分钟
               </span>
             </div>
@@ -152,26 +152,26 @@ export function ReaderPage() {
             </h1>
 
             {/* 教练引导 */}
-            <div className="mt-6 rounded-xl border border-white/[0.08] bg-white/[0.02] p-4">
-              <div className="mb-1.5 flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wider text-white/40">
+            <div className="mt-6 rounded-lg border border-border bg-card p-4">
+              <div className="mb-1.5 flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground/70">
                 <Sparkles className="h-3 w-3" /> 教练引导
               </div>
-              <p className="text-[13px] leading-relaxed text-white/65">{item.coachGuidance}</p>
+              <p className="text-[13px] leading-relaxed text-muted-foreground">{item.coachGuidance}</p>
             </div>
 
             {/* 正文 */}
             <div className="mt-8 space-y-5">
-              <p className="text-[15px] leading-[1.85] text-white/80">{item.description}</p>
+              <p className="text-[15px] leading-[1.85] text-foreground/85">{item.description}</p>
 
               {item.why && (
                 <div>
-                  <h3 className="font-serif-cn mb-2 text-base font-medium text-white/70">为什么是这个</h3>
-                  <p className="text-[15px] leading-[1.85] text-white/65">{item.why}</p>
+                  <h3 className="font-serif-cn mb-2 text-base font-medium text-muted-foreground">为什么是这个</h3>
+                  <p className="text-[15px] leading-[1.85] text-muted-foreground">{item.why}</p>
                 </div>
               )}
 
               {item.source && (
-                <p className="border-t border-white/[0.06] pt-4 text-[12px] text-white/35">
+                <p className="border-t border-border pt-4 text-[12px] text-muted-foreground/60">
                   来源 · {item.source}
                 </p>
               )}
@@ -181,11 +181,10 @@ export function ReaderPage() {
             <motion.div
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.2 }}
-              className="mt-12 rounded-2xl border border-white/[0.08] bg-white/[0.02] p-6"
+              className="mt-12 rounded-xl border border-border bg-card p-6"
             >
               <h2 className="font-serif-cn text-lg font-medium">这次阅读对你冲击多大？</h2>
-              <p className="mt-1 text-xs text-white/40">诚实的自评会校准后续推荐的难度</p>
+              <p className="mt-1 text-xs text-muted-foreground/70">诚实的自评会校准后续推荐的难度</p>
 
               {/* 星级 */}
               <div className="mt-4 flex items-center gap-1.5">
@@ -201,13 +200,13 @@ export function ReaderPage() {
                     <Star
                       className={cn(
                         "h-7 w-7 transition-colors",
-                        (hoverRating || rating) >= n ? "fill-amber-300 text-amber-300" : "text-white/20"
+                        (hoverRating || rating) >= n ? "fill-amber-500 text-amber-400/90" : "text-muted-foreground/30"
                       )}
                       strokeWidth={1.5}
                     />
                   </button>
                 ))}
-                <span className="ml-2 text-xs text-white/40">
+                <span className="ml-2 text-xs text-muted-foreground/70">
                   {["", "几乎没有", "略有触动", "有些冲击", "刷新认知", "重塑观念"][hoverRating || rating]}
                 </span>
               </div>
@@ -218,13 +217,13 @@ export function ReaderPage() {
                 onChange={(e) => setReflection(e.target.value)}
                 placeholder="一句话反思：它刷新了你什么？"
                 rows={2}
-                className="mt-4 w-full resize-none rounded-lg border border-white/10 bg-black/30 px-4 py-3 text-[14px] text-white placeholder-white/25 outline-none transition focus:border-white/30"
+                className="mt-4 w-full resize-none rounded-lg border border-border bg-background px-4 py-3 text-[14px] text-foreground placeholder:text-muted-foreground/50 outline-none transition focus:border-primary/50"
               />
 
               <button
                 onClick={handleSubmit}
                 disabled={rating === 0 || submitting}
-                className="group mt-4 flex w-full items-center justify-center gap-2 rounded-lg bg-white py-3 text-sm font-medium text-black transition hover:bg-white/90 disabled:cursor-not-allowed disabled:opacity-40"
+                className="group mt-4 flex w-full items-center justify-center gap-2 rounded-lg bg-primary py-3 text-sm font-medium text-primary-foreground transition hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 {submitting ? (
                   <>
@@ -266,11 +265,11 @@ function ResultView({ result, onBack }: { result: AssessResult; onBack: () => vo
   return (
     <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="space-y-5">
       {/* 教练反馈 */}
-      <div className="rounded-2xl border border-white/[0.08] bg-white/[0.02] p-6">
-        <div className="mb-3 flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wider text-white/40">
+      <div className="rounded-xl border border-border bg-card p-6">
+        <div className="mb-3 flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground/70">
           <Sparkles className="h-3 w-3" /> 教练反馈
         </div>
-        <p className="font-serif-cn text-[15px] leading-[1.85] text-white/80">{result.coachFeedback}</p>
+        <p className="font-serif-cn text-[15px] leading-[1.85] text-foreground/85">{result.coachFeedback}</p>
       </div>
 
       {/* 难度变化 */}
@@ -278,15 +277,15 @@ function ResultView({ result, onBack }: { result: AssessResult; onBack: () => vo
         <motion.div
           initial={{ opacity: 0, scale: 0.97 }}
           animate={{ opacity: 1, scale: 1 }}
-          className="flex items-center gap-3 rounded-2xl border border-amber-400/20 bg-amber-400/[0.06] p-4"
+          className="flex items-center gap-3 rounded-xl border border-amber-500/20 bg-amber-500/[0.04] p-4"
         >
-          <TrendingUp className="h-5 w-5 text-amber-300" />
+          <TrendingUp className="h-5 w-5 text-amber-400/90" />
           <div className="text-[13px]">
-            <span className="text-white/55">难度已调整至 </span>
+            <span className="text-muted-foreground">难度已调整至 </span>
             <span className={cn("font-semibold", DIFF_BADGE[result.newDifficulty])}>
               {result.newDifficulty}
             </span>
-            <span className="text-white/55"> · 后续挑战将更具冲击力</span>
+            <span className="text-muted-foreground"> · 后续挑战将更具冲击力</span>
           </div>
         </motion.div>
       )}
@@ -297,16 +296,16 @@ function ResultView({ result, onBack }: { result: AssessResult; onBack: () => vo
           <motion.div
             initial={{ opacity: 0, y: 16, scale: 0.96 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            className="rounded-2xl border border-white/[0.12] bg-gradient-to-b from-white/[0.04] to-transparent p-6"
+            className="rounded-xl border border-border bg-gradient-to-b from-card to-transparent p-6"
           >
             <div className="mb-3 flex items-center gap-2">
               <motion.span
                 initial={{ rotate: -30, opacity: 0 }}
                 animate={{ rotate: 0, opacity: 1 }}
-                transition={{ delay: 0.2, type: "spring" }}
-                className="flex h-8 w-8 items-center justify-center rounded-full bg-amber-400/15"
+                transition={{ type: "spring" }}
+                className="flex h-8 w-8 items-center justify-center rounded-full bg-amber-500/10"
               >
-                <Trophy className="h-4 w-4 text-amber-300" />
+                <Trophy className="h-4 w-4 text-amber-400/90" />
               </motion.span>
               <h3 className="font-serif-cn text-base font-medium">解锁新里程碑</h3>
             </div>
@@ -316,10 +315,9 @@ function ResultView({ result, onBack }: { result: AssessResult; onBack: () => vo
                   key={i}
                   initial={{ opacity: 0, x: -8 }}
                   animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: 0.4 + i * 0.15 }}
-                  className="flex items-center gap-2 rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2 text-[13px] text-white/70"
+                  className="flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-[13px] text-muted-foreground"
                 >
-                  <span className="h-1.5 w-1.5 rounded-full bg-amber-300" />
+                  <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
                   {m.description}
                 </motion.div>
               ))}
@@ -330,7 +328,7 @@ function ResultView({ result, onBack }: { result: AssessResult; onBack: () => vo
 
       <button
         onClick={onBack}
-        className="flex w-full items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/[0.02] py-3 text-sm font-medium text-white/80 transition hover:bg-white/[0.05]"
+        className="flex w-full items-center justify-center gap-2 rounded-lg border border-border bg-muted py-3 text-sm font-medium text-foreground/85 transition hover:bg-muted/80"
       >
         <ArrowLeft className="h-4 w-4" /> 返回挑战
       </button>

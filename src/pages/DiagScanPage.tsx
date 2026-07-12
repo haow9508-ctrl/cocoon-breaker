@@ -49,7 +49,7 @@ function Typewriter({ text, onDone }: { text: string; onDone?: () => void }) {
   return (
     <span>
       {shown}
-      {!done && <span className="ml-0.5 inline-block h-4 w-px animate-pulse bg-white/60 align-middle" />}
+      {!done && <span className="ml-0.5 inline-block h-4 w-px animate-pulse bg-muted-foreground/60 align-middle" />}
     </span>
   );
 }
@@ -176,24 +176,18 @@ export function DiagScanPage() {
   ];
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-[#0a0a0f] text-[#f5f5f7]">
-      {/* 背景氛围 */}
-      <div className="pointer-events-none absolute inset-0">
-        <div className="absolute left-1/2 top-1/3 h-[480px] w-[480px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-red-500/[0.06] blur-[120px]" />
-        <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-[size:48px_48px]" />
-      </div>
-
+    <div className="relative min-h-screen overflow-hidden bg-background text-foreground">
       <div className="relative z-10 mx-auto flex min-h-screen max-w-2xl flex-col px-5 py-10 sm:py-16">
         {/* 顶部品牌 */}
         <div className="mb-8 flex flex-col items-center text-center">
           <span className="relative mb-5 flex h-12 w-12 items-center justify-center">
-            <Hexagon className="h-12 w-12 text-white/30" strokeWidth={1} />
-            <span className="absolute h-2 w-2 rounded-full bg-red-400 shadow-[0_0_12px_rgba(248,113,113,0.8)]" />
+            <Hexagon className="h-12 w-12 text-muted-foreground/50" strokeWidth={1} />
+            <span className="absolute h-2 w-2 rounded-full bg-primary" />
           </span>
           <h1 className="font-serif-cn text-3xl font-semibold tracking-wide sm:text-4xl">
             茧房爆破器
           </h1>
-          <p className="mt-3 text-sm text-white/45">
+          <p className="mt-3 text-sm text-muted-foreground/80">
             识别你的认知大方向，在方向内拓展未接触的子领域
           </p>
         </div>
@@ -209,8 +203,8 @@ export function DiagScanPage() {
               transition={{ duration: 0.4 }}
               className="mx-auto w-full max-w-md"
             >
-              <div className="rounded-2xl border border-white/[0.08] bg-white/[0.02] p-6 backdrop-blur-xl">
-                <label className="mb-3 block text-xs font-medium uppercase tracking-wider text-white/40">
+              <div className="rounded-xl border border-border bg-card p-6 backdrop-blur-md">
+                <label className="mb-3 block text-xs font-medium uppercase tracking-wider text-muted-foreground/70">
                   你的昵称
                 </label>
                 <input
@@ -221,12 +215,12 @@ export function DiagScanPage() {
                   }}
                   placeholder="如何称呼你"
                   autoFocus
-                  className="w-full rounded-lg border border-white/10 bg-black/30 px-4 py-3 text-[15px] text-white placeholder-white/25 outline-none transition focus:border-white/30"
+                  className="w-full rounded-md border border-border bg-background px-4 py-3 text-[15px] text-foreground placeholder:text-muted-foreground/50 outline-none transition focus:border-primary/50"
                 />
                 <button
                   onClick={() => nickname.trim() && startConversation(nickname.trim())}
                   disabled={!nickname.trim() || loading}
-                  className="group mt-4 flex w-full items-center justify-center gap-2 rounded-lg bg-white py-3 text-sm font-medium text-black transition hover:bg-white/90 disabled:cursor-not-allowed disabled:opacity-40"
+                  className="group mt-4 flex w-full items-center justify-center gap-2 rounded-md bg-primary py-3 text-sm font-medium text-primary-foreground transition hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   {loading ? (
                     <>
@@ -238,12 +232,12 @@ export function DiagScanPage() {
                     </>
                   )}
                 </button>
-                <p className="mt-4 text-center text-[11px] leading-relaxed text-white/30">
+                <p className="mt-4 text-center text-[11px] leading-relaxed text-muted-foreground/50">
                   至少 3 轮对话 · 随时生成档案 · 数据仅存于你的浏览器
                 </p>
               </div>
               {error && (
-                <p className="mt-4 rounded-lg border border-red-500/20 bg-red-500/10 p-3 text-center text-xs text-red-300">
+                <p className="mt-4 rounded-md border border-red-500/20 bg-red-500/10 p-3 text-center text-xs text-red-300">
                   {error}
                 </p>
               )}
@@ -260,12 +254,12 @@ export function DiagScanPage() {
               className="flex flex-1 flex-col"
             >
               {/* 进度指示：显示已对话轮数 + 最低轮数提示 */}
-              <div className="mb-4 flex items-center justify-center gap-2 text-[11px] text-white/40">
+              <div className="mb-4 flex items-center justify-center gap-2 text-[11px] text-muted-foreground/70">
                 <span>已对话 {userTurnCount} 轮</span>
-                <span className="text-white/20">·</span>
+                <span className="text-muted-foreground/30">·</span>
                 <span>
                   {canFinish ? (
-                    <span className="text-emerald-300/80">可以生成档案，或继续深入</span>
+                    <span className="text-emerald-400/80">可以生成档案，或继续深入</span>
                   ) : (
                     <span>至少 {MIN_ROUNDS} 轮以生成档案</span>
                   )}
@@ -290,16 +284,16 @@ export function DiagScanPage() {
                     >
                       <div className="max-w-[82%]">
                         {msg.role === "assistant" && (
-                          <span className="mb-1.5 block text-[11px] font-medium text-white/35">
+                          <span className="mb-1.5 block text-[11px] font-medium text-muted-foreground/60">
                             教练
                           </span>
                         )}
                         <div
                           className={cn(
-                            "rounded-2xl px-4 py-3 text-[14px] leading-relaxed",
+                            "rounded-xl px-4 py-3 text-[14px] leading-relaxed",
                             msg.role === "user"
-                              ? "rounded-br-sm bg-white text-black"
-                              : "rounded-bl-sm border border-white/[0.08] bg-white/[0.03] text-white/90"
+                              ? "rounded-br-sm bg-primary text-primary-foreground"
+                              : "rounded-bl-sm border border-border bg-card text-foreground"
                           )}
                         >
                           {isLastCoach && !isTyped ? (
@@ -320,12 +314,12 @@ export function DiagScanPage() {
                 {loading && (
                   <div className="flex justify-start">
                     <div>
-                      <span className="mb-1.5 block text-[11px] font-medium text-white/35">教练</span>
-                      <div className="flex items-center gap-1.5 rounded-2xl rounded-bl-sm border border-white/[0.08] bg-white/[0.03] px-4 py-3.5">
+                      <span className="mb-1.5 block text-[11px] font-medium text-muted-foreground/60">教练</span>
+                      <div className="flex items-center gap-1.5 rounded-xl rounded-bl-sm border border-border bg-card px-4 py-3.5">
                         {[0, 1, 2].map((i) => (
                           <motion.span
                             key={i}
-                            className="h-1.5 w-1.5 rounded-full bg-white/50"
+                            className="h-1.5 w-1.5 rounded-full bg-muted-foreground/50"
                             animate={{ y: [0, -4, 0] }}
                             transition={{ duration: 0.8, repeat: Infinity, delay: i * 0.15 }}
                           />
@@ -345,7 +339,7 @@ export function DiagScanPage() {
                 >
                   <button
                     onClick={enterAnalyzing}
-                    className="group flex items-center gap-2 rounded-lg bg-white px-5 py-2.5 text-sm font-medium text-black transition hover:bg-white/90"
+                    className="group flex items-center gap-2 rounded-md bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground transition hover:bg-primary/90"
                   >
                     生成我的认知档案
                     <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
@@ -364,12 +358,12 @@ export function DiagScanPage() {
                   }}
                   placeholder={typing ? "教练正在说话…" : "写下你的回答"}
                   disabled={loading || typing}
-                  className="flex-1 rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-[14px] text-white placeholder-white/25 outline-none transition focus:border-white/30 disabled:opacity-50"
+                  className="flex-1 rounded-lg border border-border bg-background px-4 py-3 text-[14px] text-foreground placeholder:text-muted-foreground/50 outline-none transition focus:border-primary/50 disabled:opacity-50"
                 />
                 <button
                   onClick={handleSend}
                   disabled={!input.trim() || loading || typing}
-                  className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-white text-black transition hover:bg-white/90 disabled:opacity-30"
+                  className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground transition hover:bg-primary/90 disabled:opacity-40"
                   aria-label="发送"
                 >
                   <ArrowRight className="h-5 w-5" />
@@ -377,7 +371,7 @@ export function DiagScanPage() {
               </div>
 
               {error && (
-                <p className="mt-3 rounded-lg border border-red-500/20 bg-red-500/10 p-3 text-center text-xs text-red-300">
+                <p className="mt-3 rounded-md border border-red-500/20 bg-red-500/10 p-3 text-center text-xs text-red-300">
                   {error}
                 </p>
               )}
@@ -394,19 +388,19 @@ export function DiagScanPage() {
             >
               <div className="relative mb-8 flex h-20 w-20 items-center justify-center">
                 <motion.span
-                  className="absolute inset-0 rounded-full border border-white/15"
+                  className="absolute inset-0 rounded-full border border-border"
                   animate={{ scale: [1, 1.15, 1], opacity: [0.6, 0.2, 0.6] }}
                   transition={{ duration: 2, repeat: Infinity }}
                 />
                 <motion.span
-                  className="absolute inset-2 rounded-full border border-white/10"
+                  className="absolute inset-2 rounded-full border border-border"
                   animate={{ rotate: 360 }}
                   transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
                 />
-                <Hexagon className="h-8 w-8 text-white/70" strokeWidth={1.25} />
+                <Hexagon className="h-8 w-8 text-muted-foreground" strokeWidth={1.25} />
               </div>
 
-              <h2 className="font-serif-cn mb-8 text-xl text-white/90">正在分析你的认知档案</h2>
+              <h2 className="font-serif-cn mb-8 text-xl text-foreground">正在分析你的认知档案</h2>
 
               <div className="w-full space-y-3">
                 {ANALYZING_STEPS.map((label, i) => {
@@ -417,21 +411,20 @@ export function DiagScanPage() {
                       key={label}
                       initial={{ opacity: 0, x: -8 }}
                       animate={{ opacity: active ? 1 : 0.35, x: 0 }}
-                      transition={{ delay: i * 0.1 }}
-                      className="flex items-center gap-3 rounded-lg border border-white/[0.06] bg-white/[0.02] px-4 py-2.5"
+                      className="flex items-center gap-3 rounded-md border border-border bg-card px-4 py-2.5"
                     >
                       {active ? (
-                        <span className="flex h-5 w-5 items-center justify-center rounded-full bg-white/90 text-black">
+                        <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary text-primary-foreground">
                           <svg viewBox="0 0 12 12" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth={2}>
                             <path d="M2 6l3 3 5-6" strokeLinecap="round" strokeLinejoin="round" />
                           </svg>
                         </span>
                       ) : current ? (
-                        <Loader2 className="h-5 w-5 animate-spin text-white/60" />
+                        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
                       ) : (
-                        <span className="h-5 w-5 rounded-full border border-white/15" />
+                        <span className="h-5 w-5 rounded-full border border-border" />
                       )}
-                      <span className="text-[13px] text-white/70">{label}</span>
+                      <span className="text-[13px] text-muted-foreground">{label}</span>
                     </motion.div>
                   );
                 })}

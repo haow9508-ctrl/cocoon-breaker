@@ -21,11 +21,11 @@ const QUICK_PROMPTS = [
 
 // PRD 承诺：教练方法论结构化输出
 const METHOD_LABELS: Record<string, { text: string; className: string }> = {
-  socratic: { text: "苏格拉底式", className: "border-sky-400/30 bg-sky-400/10 text-sky-300" },
-  analogy: { text: "类比桥接", className: "border-violet-400/30 bg-violet-400/10 text-violet-300" },
-  counterfactual: { text: "反事实推演", className: "border-amber-400/30 bg-amber-400/10 text-amber-300" },
-  memory: { text: "记忆调用", className: "border-emerald-400/30 bg-emerald-400/10 text-emerald-300" },
-  general: { text: "教练", className: "border-white/15 bg-white/5 text-white/50" },
+  socratic: { text: "苏格拉底式", className: "border-sky-500/20 bg-sky-500/5 text-sky-400/90" },
+  analogy: { text: "类比桥接", className: "border-violet-500/20 bg-violet-500/5 text-violet-400/90" },
+  counterfactual: { text: "反事实推演", className: "border-amber-500/20 bg-amber-500/5 text-amber-400/90" },
+  memory: { text: "记忆调用", className: "border-emerald-500/20 bg-emerald-500/5 text-emerald-400/90" },
+  general: { text: "教练", className: "border-border bg-muted text-muted-foreground" },
 };
 
 export function CoachChat() {
@@ -81,11 +81,9 @@ export function CoachChat() {
       <motion.button
         initial={{ scale: 0, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
-        transition={{ delay: 0.4, type: "spring", stiffness: 260, damping: 20 }}
-        whileHover={{ scale: 1.06 }}
-        whileTap={{ scale: 0.94 }}
+        transition={{ duration: 0.2 }}
         onClick={() => setIsOpen((v) => !v)}
-        className="fixed bottom-6 right-6 z-50 flex h-14 w-14 items-center justify-center rounded-full border border-white/10 bg-[#14141a] text-white/90 shadow-2xl shadow-black/40 transition-colors hover:bg-[#1c1c24]"
+        className="fixed bottom-6 right-6 z-50 flex h-14 w-14 items-center justify-center rounded-full border border-border bg-card text-foreground shadow-lg shadow-black/30 transition-colors hover:bg-muted"
         aria-label="教练对话"
       >
         <AnimatePresence mode="wait" initial={false}>
@@ -109,21 +107,21 @@ export function CoachChat() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 16, scale: 0.96 }}
             transition={{ type: "spring", damping: 26, stiffness: 320 }}
-            className="fixed bottom-24 right-6 z-50 flex max-h-[70vh] w-[calc(100vw-3rem)] max-w-sm flex-col overflow-hidden rounded-2xl border border-white/[0.08] bg-[#0e0e14]/95 backdrop-blur-xl shadow-2xl shadow-black/50"
+            className="fixed bottom-24 right-6 z-50 flex max-h-[70vh] w-[calc(100vw-3rem)] max-w-sm flex-col overflow-hidden rounded-xl border border-border bg-card/95 backdrop-blur-md shadow-lg shadow-black/30"
           >
             {/* 头部 */}
-            <div className="flex items-center gap-3 border-b border-white/[0.06] px-4 py-3.5">
-              <span className="relative flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/[0.03]">
-                <MessageSquare className="h-4 w-4 text-white/70" />
-                <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-[#0e0e14] bg-emerald-400" />
+            <div className="flex items-center gap-3 border-b border-border px-4 py-3.5">
+              <span className="relative flex h-9 w-9 items-center justify-center rounded-full border border-border bg-card">
+                <MessageSquare className="h-4 w-4 text-muted-foreground" />
+                <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-card bg-emerald-400" />
               </span>
               <div className="flex-1">
-                <div className="text-[13px] font-medium text-white/90">认知教练</div>
-                <div className="text-[11px] text-white/40">基于你的暴露数据回应</div>
+                <div className="text-[13px] font-medium text-foreground">认知教练</div>
+                <div className="text-[11px] text-muted-foreground/70">基于你的暴露数据回应</div>
               </div>
               <button
                 onClick={() => setIsOpen(false)}
-                className="rounded-md p-1 text-white/40 transition hover:bg-white/5 hover:text-white/80"
+                className="rounded-md p-1 text-muted-foreground/70 transition hover:bg-muted/80 hover:text-foreground/85"
                 aria-label="收起"
               >
                 <X className="h-4 w-4" />
@@ -134,17 +132,17 @@ export function CoachChat() {
             <div ref={scrollRef} className="flex-1 space-y-3 overflow-y-auto px-4 py-4">
               {messages.length === 0 && (
                 <div className="flex flex-col items-center py-6 text-center">
-                  <span className="mb-3 flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/[0.02]">
-                    <MessageSquare className="h-4 w-4 text-white/40" />
+                  <span className="mb-3 flex h-10 w-10 items-center justify-center rounded-full border border-border bg-card">
+                    <MessageSquare className="h-4 w-4 text-muted-foreground/70" />
                   </span>
-                  <p className="mb-4 text-[13px] text-white/45">问我任何关于认知成长的问题</p>
+                  <p className="mb-4 text-[13px] text-muted-foreground/80">问我任何关于认知成长的问题</p>
                   <div className="flex flex-wrap justify-center gap-2">
                     {QUICK_PROMPTS.map((p) => (
                       <button
                         key={p}
                         onClick={() => handleSend(p)}
                         disabled={loading}
-                        className="rounded-full border border-white/10 bg-white/[0.02] px-3 py-1.5 text-[12px] text-white/60 transition hover:border-white/25 hover:text-white/90 disabled:opacity-50"
+                        className="rounded-full border border-border bg-card px-3 py-1.5 text-[12px] text-muted-foreground transition hover:border-white/25 hover:text-foreground disabled:opacity-50"
                       >
                         {p}
                       </button>
@@ -162,10 +160,10 @@ export function CoachChat() {
                 >
                   <div
                     className={cn(
-                      "max-w-[85%] rounded-2xl px-3.5 py-2.5 text-[13px] leading-relaxed whitespace-pre-wrap",
+                      "max-w-[85%] rounded-xl px-3.5 py-2.5 text-[13px] leading-relaxed whitespace-pre-wrap",
                       msg.role === "user"
-                        ? "rounded-br-sm bg-white text-black"
-                        : "rounded-bl-sm border border-white/[0.08] bg-white/[0.03] text-white/85"
+                        ? "rounded-br-sm bg-primary text-primary-foreground"
+                        : "rounded-bl-sm border border-border bg-card text-foreground/85"
                     )}
                   >
                     {msg.role === "assistant" && msg.method && msg.method !== "general" && (
@@ -181,13 +179,13 @@ export function CoachChat() {
               {/* 教练思考中 */}
               {loading && (
                 <div className="flex justify-start">
-                  <div className="flex items-center gap-1.5 rounded-2xl rounded-bl-sm border border-white/[0.08] bg-white/[0.03] px-4 py-3.5">
+                  <div className="flex items-center gap-1.5 rounded-xl rounded-bl-sm border border-border bg-card px-4 py-3.5">
                     {[0, 1, 2].map((i) => (
                       <motion.span
                         key={i}
-                        className="h-1.5 w-1.5 rounded-full bg-white/50"
+                        className="h-1.5 w-1.5 rounded-full bg-muted-foreground/50"
                         animate={{ y: [0, -4, 0] }}
-                        transition={{ duration: 0.8, repeat: Infinity, delay: i * 0.15 }}
+                        transition={{ duration: 0.8, repeat: Infinity }}
                       />
                     ))}
                   </div>
@@ -196,7 +194,7 @@ export function CoachChat() {
             </div>
 
             {/* 输入区 */}
-            <div className="border-t border-white/[0.06] p-3">
+            <div className="border-t border-border p-3">
               <div className="flex items-center gap-2">
                 <input
                   ref={inputRef}
@@ -207,12 +205,12 @@ export function CoachChat() {
                   }}
                   placeholder={loading ? "教练正在思考…" : "输入你的问题"}
                   disabled={loading}
-                  className="flex-1 rounded-lg border border-white/10 bg-black/30 px-3.5 py-2.5 text-[13px] text-white placeholder-white/25 outline-none transition focus:border-white/30 disabled:opacity-50"
+                  className="flex-1 rounded-lg border border-border bg-background px-3.5 py-2.5 text-[13px] text-foreground placeholder:text-muted-foreground/50 outline-none transition focus:border-primary/50 disabled:opacity-50"
                 />
                 <button
                   onClick={() => handleSend()}
                   disabled={!input.trim() || loading}
-                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white text-black transition hover:bg-white/90 disabled:opacity-30"
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground transition hover:bg-primary/90 disabled:opacity-30"
                   aria-label="发送"
                 >
                   {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
