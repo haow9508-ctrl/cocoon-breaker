@@ -62,6 +62,8 @@ export interface ChallengeItem {
   coachGuidance: string;
   sourceType?: "bing" | "deepseek_fallback";
   sourceUrl?: string;
+  isCognitiveLeap?: boolean;     // v6.2：认知跳跃内容
+  leapBridge?: string;            // v6.2：认知桥梁描述
 }
 
 export interface ChallengeResult {

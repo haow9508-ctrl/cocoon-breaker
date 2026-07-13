@@ -3,7 +3,7 @@
 // 在用户认知大方向内找"认知相邻但未接触"的子领域，而非跨方向找盲区
 
 import type { CognitiveDirection } from "../_knowledge/domains.js";
-import { generateChallenge, ChallengeContent, evaluateSubfieldExpansion } from "./llm.js";
+import { generateChallenge, ChallengeContent, evaluateSubfieldExpansion, shouldTriggerCognitiveLeap, generateCognitiveLeap } from "./llm.js";
 import { retrieveFromRag } from "./ragClient.js";
 import { getUnexploredSubfields, getKnownSubfields } from "./analyzer.js";
 import type { DifficultyLevel } from "./analyzer.js";
@@ -44,7 +44,28 @@ interface ScoredSubfield {
   subfieldId: string;
   subfieldName: string;
   expansionScore: number;   // 拓展价值 0-1（DeepSeek 评估）
+  behaviorAdjustment: number; // v6.2：行为数据调整值 -0.3 ~ +0.3
   totalScore: number;
+}
+
+/**
+ * v6.2：基于用户行为数据计算调整值
+ * - 某方向平均冲击分高 → 提升该方向子领域权重（+0.1~+0.3）
+ * - 某方向平均冲击分低 → 降低该方向子领域权重（-0.1~-0.3）
+ * - 用户连续 3 次低分（≤2）→ 整体降低拓展难度
+ */
+function computeBehaviorAdjustment(
+  directionId: string,
+  impactHistory: ImpactRecord[]
+): number {
+  const directionImpacts = impactHistory.filter((r) => r.directionId === directionId);
+  if (directionImpacts.length === 0) return 0;
+
+  const avgScore = directionImpacts.reduce((s, r) => s + r.impactScore, 0) / directionImpacts.length;
+  
+  // 平均冲击分 3 为基准：高于 3 加分，低于 3 减分
+  const delta = (avgScore - 3) * 0.15; // 每偏离 1 分，调整 0.15
+  return Math.max(-0.3, Math.min(0.3, delta));
 }
 
 /**
@@ -65,8 +86,10 @@ export interface ChallengeItem {
   readTimeMinutes: number;
   difficultyLevel: DifficultyLevel;
   coachGuidance: string;
-  sourceType?: "bing" | "deepseek_fallback";  // Bing 实时互联网检索 / DeepSeek 降级
-  sourceUrl?: string;  // 真实链接（RAG 检索时提供）
+  sourceType?: "bing" | "deepseek_fallback";
+  sourceUrl?: string;
+  isCognitiveLeap?: boolean;     // v6.2：标记为认知跳跃内容
+  leapBridge?: string;            // v6.2：认知桥梁描述
 }
 
 export interface ChallengeResult {
@@ -107,14 +130,18 @@ export async function decideExpansionTargets(
 
   const scored: ScoredSubfield[] = candidates.map((s) => {
     const expansionScore = expansionMap.get(s.subfieldId) ?? 0.5;
-    // 综合分：拓展价值即综合分（同方向内拓展价值高的优先）
+    // v6.2：行为数据调整——基于用户历史冲击自评调整推荐权重
+    const behaviorAdjustment = computeBehaviorAdjustment(s.directionId, input.impactHistory);
+    // 综合分：拓展价值 + 行为调整
+    const totalScore = Math.max(0, Math.min(1, expansionScore + behaviorAdjustment));
     return {
       directionId: s.directionId,
       directionName: s.directionName,
       subfieldId: s.subfieldId,
       subfieldName: s.subfieldName,
       expansionScore,
-      totalScore: expansionScore,
+      behaviorAdjustment,
+      totalScore,
     };
   });
 
@@ -228,6 +255,40 @@ export async function generateDailyChallenge(
     sourceType: c.sourceType,
     sourceUrl: c.sourceUrl,
   }));
+
+  // v6.2：认知跳跃触发——用户在某方向深耕到一定深度后，追加一篇远距离类比内容
+  for (const direction of input.directions) {
+    if (shouldTriggerCognitiveLeap(direction.id, input.directions, input.impactHistory)) {
+      const recentTitles = input.impactHistory
+        .filter((r) => r.directionId === direction.id)
+        .slice(-3)
+        .map((r) => r.title);
+      const leapContent = await generateCognitiveLeap(
+        { id: direction.id, name: direction.name },
+        knownSubfields,
+        recentTitles
+      );
+      if (leapContent) {
+        items.push({
+          id: `leap_${direction.id}_${Date.now()}`,
+          directionId: leapContent.directionId,
+          directionName: leapContent.directionName,
+          subfieldId: leapContent.subfieldId,
+          subfieldName: leapContent.subfieldName,
+          title: leapContent.title,
+          why: leapContent.why,
+          description: leapContent.description,
+          source: leapContent.source,
+          readTimeMinutes: leapContent.readTimeMinutes,
+          difficultyLevel: "L3",
+          coachGuidance: leapContent.coachGuidance,
+          sourceType: "deepseek_fallback",
+          isCognitiveLeap: true,
+        });
+        break; // 每次挑战最多追加一篇认知跳跃
+      }
+    }
+  }
 
   return {
     items,

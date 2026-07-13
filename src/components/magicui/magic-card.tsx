@@ -27,7 +27,7 @@ export function MagicCard({ children, className, gradientSize = 200, gradientCol
       ref={cardRef}
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
-      className={cn("group relative overflow-hidden rounded-xl border border-white/[0.08] bg-white/[0.02]", className)}
+      className={cn("group relative overflow-hidden rounded-xl border border-border bg-card", className)}
     >
       <div
         className="pointer-events-none absolute -inset-px opacity-0 transition-opacity duration-300 group-hover:opacity-100"

@@ -30,9 +30,9 @@ interface GrowthData {
 }
 
 const DIFF_BADGE: Record<string, string> = {
-  L1: "text-emerald-400/90 border-emerald-500/20 bg-emerald-500/5",
-  L2: "text-amber-400/90 border-amber-500/20 bg-amber-500/5",
-  L3: "text-red-400/90 border-red-500/20 bg-red-500/5",
+  L1: "text-emerald-700 border-emerald-600/30 bg-emerald-50",
+  L2: "text-amber-700 border-amber-600/30 bg-amber-50",
+  L3: "text-red-700 border-red-600/30 bg-red-50",
 };
 
 // 生成平滑 SVG 路径（Catmull-Rom 转 Bezier）
@@ -91,7 +91,7 @@ export function GrowthPage() {
   if (error) {
     return (
       <div className="mx-auto max-w-3xl px-5 pt-32">
-        <div className="rounded-lg border border-red-500/20 bg-red-500/10 p-5 text-sm text-red-400/90">{error}</div>
+        <div className="rounded-lg border border-red-200 bg-red-50 p-5 text-sm text-red-700">{error}</div>
       </div>
     );
   }
@@ -113,8 +113,8 @@ export function GrowthPage() {
 
   const statCards = [
     { label: "总阅读数", value: stats.totalReads, icon: BookOpen, accent: "text-foreground/85" },
-    { label: "覆盖子领域", value: coverageDisplay, icon: Compass, accent: "text-blue-300" },
-    { label: "平均冲击分", value: stats.avgImpact.toFixed(1), icon: Zap, accent: "text-red-300" },
+    { label: "覆盖子领域", value: coverageDisplay, icon: Compass, accent: "text-blue-600" },
+    { label: "平均冲击分", value: stats.avgImpact.toFixed(1), icon: Zap, accent: "text-red-600" },
     { label: "当前难度", value: stats.difficultyLevel, icon: Gauge, accent: "text-foreground/85", isLevel: true },
   ];
 
@@ -123,7 +123,7 @@ export function GrowthPage() {
       {/* 页头 */}
       <motion.header initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
         <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-muted-foreground/70">
-          <span className="h-1 w-6 bg-white/30" />
+          <span className="h-1 w-6 bg-muted-foreground/30" />
           成长曲线
         </div>
         <h1 className="font-serif-cn mt-3 text-3xl font-semibold tracking-wide sm:text-4xl">
@@ -165,7 +165,7 @@ export function GrowthPage() {
           <h2 className="font-serif-cn text-lg font-medium">每周成长</h2>
           <div className="flex items-center gap-4 text-[11px]">
             <span className="flex items-center gap-1.5 text-muted-foreground">
-              <span className="h-2 w-2 rounded-full bg-blue-400" /> 覆盖子领域
+              <span className="h-2 w-2 rounded-full bg-blue-600" /> 覆盖子领域
             </span>
             <span className="flex items-center gap-1.5 text-muted-foreground">
               <span className="h-2 w-2 rounded-full bg-orange-400" /> 冲击分
@@ -198,8 +198,8 @@ export function GrowthPage() {
                 key={m.id}
                 className="flex items-center gap-3 rounded-lg border border-border bg-card px-4 py-3"
               >
-                <span className="flex h-8 w-8 items-center justify-center rounded-full bg-amber-500/10">
-                  <Trophy className="h-3.5 w-3.5 text-amber-400/90" />
+                <span className="flex h-8 w-8 items-center justify-center rounded-full bg-amber-100">
+                  <Trophy className="h-3.5 w-3.5 text-amber-600" />
                 </span>
                 <span className="flex-1 text-[13px] text-muted-foreground">{m.description}</span>
                 <span className="text-[11px] text-muted-foreground/50">
@@ -279,7 +279,7 @@ function GrowthChart({ weeklyData, maxSubfields }: { weeklyData: WeeklyPoint[]; 
         ))}
         {/* Y 轴右：冲击分刻度 */}
         {[1, 2, 3, 4, 5].map((v) => (
-          <text key={`y2-${v}`} x={W - PAD.right + 8} y={y2For(v) + 3} textAnchor="start" className="fill-red-400/40 text-[10px]">
+          <text key={`y2-${v}`} x={W - PAD.right + 8} y={y2For(v) + 3} textAnchor="start" className="fill-red-500/60 text-[10px]">
             {v}
           </text>
         ))}

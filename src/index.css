@@ -13,28 +13,29 @@
 
 @layer base {
   :root {
-    --background: 220 6% 5%;
-    --foreground: 220 8% 90%;
-    --card: 220 6% 7%;
-    --card-foreground: 220 8% 90%;
-    --popover: 220 6% 6%;
-    --popover-foreground: 220 8% 90%;
-    --primary: 24 45% 58%;
-    --primary-foreground: 40 30% 97%;
-    --secondary: 220 6% 11%;
-    --secondary-foreground: 220 8% 90%;
-    --muted: 220 6% 11%;
-    --muted-foreground: 220 5% 55%;
-    --accent: 220 6% 11%;
-    --accent-foreground: 220 8% 90%;
-    --destructive: 0 50% 42%;
+    /* 浅色主题：纸感米白基底 + 深炭灰文字 + 克制的暖色强调 */
+    --background: 40 30% 98%;
+    --foreground: 220 15% 15%;
+    --card: 0 0% 100%;
+    --card-foreground: 220 15% 15%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 220 15% 15%;
+    --primary: 20 35% 50%;
+    --primary-foreground: 40 30% 98%;
+    --secondary: 220 14% 96%;
+    --secondary-foreground: 220 15% 20%;
+    --muted: 220 14% 96%;
+    --muted-foreground: 220 8% 45%;
+    --accent: 220 14% 94%;
+    --accent-foreground: 220 15% 20%;
+    --destructive: 0 60% 50%;
     --destructive-foreground: 0 0% 98%;
-    --border: 220 6% 15%;
-    --input: 220 6% 11%;
-    --ring: 24 45% 58%;
+    --border: 220 12% 90%;
+    --input: 220 14% 94%;
+    --ring: 20 35% 50%;
     --radius: 0.5rem;
-    --surface: 220 6% 8%;
-    --surface-hover: 220 6% 10%;
+    --surface: 0 0% 100%;
+    --surface-hover: 220 14% 96%;
   }
 }
 
@@ -88,7 +89,7 @@ body {
 }
 
 ::selection {
-  background: hsl(var(--primary) / 0.25);
+  background: hsl(var(--primary) / 0.15);
 }
 
 @layer components {
@@ -97,7 +98,7 @@ body {
     border: 1px solid hsl(var(--border));
   }
   .surface-muted {
-    background: hsl(var(--muted) / 0.5);
+    background: hsl(var(--muted) / 0.6);
     border: 1px solid hsl(var(--border));
   }
 }

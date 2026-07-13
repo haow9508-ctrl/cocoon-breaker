@@ -22,7 +22,7 @@ export function getExposureLevel(count: number): {
     return {
       level: "blind",
       label: "认知盲区",
-      color: "text-blue-400",
+      color: "text-blue-600",
       bgColor: "bg-blue-500",
     };
   }
@@ -30,7 +30,7 @@ export function getExposureLevel(count: number): {
     return {
       level: "low",
       label: "低频",
-      color: "text-emerald-400",
+      color: "text-emerald-600",
       bgColor: "bg-emerald-500",
     };
   }
@@ -38,7 +38,7 @@ export function getExposureLevel(count: number): {
     return {
       level: "medium",
       label: "中频",
-      color: "text-yellow-400",
+      color: "text-yellow-600",
       bgColor: "bg-yellow-500",
     };
   }
@@ -46,14 +46,14 @@ export function getExposureLevel(count: number): {
     return {
       level: "high",
       label: "高频",
-      color: "text-orange-400",
+      color: "text-orange-600",
       bgColor: "bg-orange-500",
     };
   }
   return {
     level: "extreme",
     label: "过度暴露",
-    color: "text-red-400",
+    color: "text-red-600",
     bgColor: "bg-red-500",
   };
 }
@@ -64,12 +64,12 @@ export function getDifficultyLabel(difficulty: string): {
 } {
   switch (difficulty) {
     case "beginner":
-      return { label: "入门", color: "text-emerald-400 bg-emerald-500/10 border-emerald-500/30" };
+      return { label: "入门", color: "text-emerald-600 bg-emerald-50 border-emerald-500/30" };
     case "intermediate":
-      return { label: "进阶", color: "text-yellow-400 bg-yellow-500/10 border-yellow-500/30" };
+      return { label: "进阶", color: "text-yellow-600 bg-yellow-50 border-yellow-500/30" };
     case "advanced":
-      return { label: "高级", color: "text-red-400 bg-red-500/10 border-red-500/30" };
+      return { label: "高级", color: "text-red-600 bg-red-50 border-red-500/30" };
     default:
-      return { label: difficulty, color: "text-gray-400" };
+      return { label: difficulty, color: "text-gray-500" };
   }
 }

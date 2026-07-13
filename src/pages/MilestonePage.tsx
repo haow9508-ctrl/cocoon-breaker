@@ -48,7 +48,7 @@ export function MilestonePage() {
       {/* 页头 */}
       <motion.header initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
         <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-muted-foreground/70">
-          <span className="h-1 w-6 bg-white/30" />
+          <span className="h-1 w-6 bg-muted-foreground/30" />
           里程碑
         </div>
         <div className="mt-3 flex items-end justify-between gap-4">
@@ -84,7 +84,7 @@ export function MilestonePage() {
             >
               {/* 装饰光晕（仅已解锁） */}
               {isUnlocked && (
-                <div className="pointer-events-none absolute -right-8 -top-8 h-24 w-24 rounded-full bg-amber-500/[0.06] blur-2xl" />
+                <div className="pointer-events-none absolute -right-8 -top-8 h-24 w-24 rounded-full bg-amber-200/40 blur-2xl" />
               )}
 
               <div className="relative flex items-start justify-between">
@@ -92,14 +92,14 @@ export function MilestonePage() {
                   className={cn(
                     "flex h-10 w-10 items-center justify-center rounded-lg border",
                     isUnlocked
-                      ? "border-amber-500/20 bg-amber-500/5 text-amber-400/90"
-                      : "border-border bg-card/50 text-muted-foreground/40"
+                      ? "border-amber-300 bg-amber-50 text-amber-600"
+                      : "border-border bg-muted/50 text-muted-foreground/40"
                   )}
                 >
                   {isUnlocked ? <Icon className="h-5 w-5" strokeWidth={1.5} /> : <Lock className="h-4 w-4" strokeWidth={1.5} />}
                 </span>
                 {isUnlocked && (
-                  <span className="rounded-full border border-emerald-500/20 bg-emerald-500/5 px-2 py-0.5 text-[10px] font-medium text-emerald-400/90">
+                  <span className="rounded-full border border-emerald-300 bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-700">
                     已解锁
                   </span>
                 )}

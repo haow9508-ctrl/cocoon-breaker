@@ -21,10 +21,10 @@ const QUICK_PROMPTS = [
 
 // PRD 承诺：教练方法论结构化输出
 const METHOD_LABELS: Record<string, { text: string; className: string }> = {
-  socratic: { text: "苏格拉底式", className: "border-sky-500/20 bg-sky-500/5 text-sky-400/90" },
-  analogy: { text: "类比桥接", className: "border-violet-500/20 bg-violet-500/5 text-violet-400/90" },
-  counterfactual: { text: "反事实推演", className: "border-amber-500/20 bg-amber-500/5 text-amber-400/90" },
-  memory: { text: "记忆调用", className: "border-emerald-500/20 bg-emerald-500/5 text-emerald-400/90" },
+  socratic: { text: "苏格拉底式", className: "border-sky-500/20 bg-sky-50 text-sky-700" },
+  analogy: { text: "类比桥接", className: "border-violet-500/20 bg-violet-50 text-violet-700" },
+  counterfactual: { text: "反事实推演", className: "border-amber-500/20 bg-amber-50 text-amber-700" },
+  memory: { text: "记忆调用", className: "border-emerald-500/20 bg-emerald-50 text-emerald-700" },
   general: { text: "教练", className: "border-border bg-muted text-muted-foreground" },
 };
 
@@ -113,7 +113,7 @@ export function CoachChat() {
             <div className="flex items-center gap-3 border-b border-border px-4 py-3.5">
               <span className="relative flex h-9 w-9 items-center justify-center rounded-full border border-border bg-card">
                 <MessageSquare className="h-4 w-4 text-muted-foreground" />
-                <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-card bg-emerald-400" />
+                <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-card bg-emerald-500" />
               </span>
               <div className="flex-1">
                 <div className="text-[13px] font-medium text-foreground">认知教练</div>
@@ -142,7 +142,7 @@ export function CoachChat() {
                         key={p}
                         onClick={() => handleSend(p)}
                         disabled={loading}
-                        className="rounded-full border border-border bg-card px-3 py-1.5 text-[12px] text-muted-foreground transition hover:border-white/25 hover:text-foreground disabled:opacity-50"
+                        className="rounded-full border border-border bg-card px-3 py-1.5 text-[12px] text-muted-foreground transition hover:border-primary/40 hover:text-foreground disabled:opacity-50"
                       >
                         {p}
                       </button>

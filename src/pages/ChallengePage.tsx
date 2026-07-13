@@ -5,7 +5,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Clock, ArrowUpRight, Loader2, Eye, CheckCircle2, BookOpen, RotateCcw, Compass } from "lucide-react";
+import { Clock, ArrowUpRight, Loader2, Eye, CheckCircle2, BookOpen, RotateCcw, Compass, Zap } from "lucide-react";
 import { getChallenge, type ChallengeItem, type ChallengeResult } from "../lib/apiClient";
 import { profileManager } from "../lib/profileManager";
 import { useAppStore } from "../store/useAppStore";
@@ -13,9 +13,9 @@ import { cn } from "@/lib/utils";
 
 // 难度等级配色
 const DIFF_BADGE: Record<string, string> = {
-  L1: "text-emerald-400/90 border-emerald-500/20 bg-emerald-500/5",
-  L2: "text-amber-400/90 border-amber-500/20 bg-amber-500/5",
-  L3: "text-red-400/90 border-red-500/20 bg-red-500/5",
+  L1: "text-emerald-700 border-emerald-600/30 bg-emerald-50",
+  L2: "text-amber-700 border-amber-600/30 bg-amber-50",
+  L3: "text-red-700 border-red-600/30 bg-red-50",
 };
 
 export function ChallengePage() {
@@ -119,7 +119,7 @@ export function ChallengePage() {
           </div>
           {!loading && data && (
             <div className="flex items-center gap-2 rounded-md border border-border bg-card px-3.5 py-2">
-              <Eye className="h-3.5 w-3.5 text-blue-300" />
+              <Eye className="h-3.5 w-3.5 text-blue-600" />
               <span className="text-xs text-muted-foreground">
                 <span className="text-foreground/85">{data.unexploredCount}</span> 个子领域待拓展
               </span>
@@ -179,13 +179,13 @@ export function ChallengePage() {
           <p className="mt-3 text-sm">教练正在为你挑选方向内挑战…</p>
         </div>
       ) : error ? (
-        <div className="rounded-lg border border-red-500/20 bg-red-500/10 p-5 text-sm text-red-300">
+        <div className="rounded-lg border border-red-200 bg-red-50 p-5 text-sm text-red-700">
           {error}
         </div>
       ) : hasNoDirections ? (
         // 旧档案迁移后 directions 为空——引导重新诊断
-        <div className="rounded-xl border border-dashed border-amber-500/20 bg-amber-500/5 p-8 text-center">
-          <Compass className="mx-auto h-10 w-10 text-amber-400/60" strokeWidth={1.25} />
+        <div className="rounded-xl border border-dashed border-amber-300 bg-amber-50 p-8 text-center">
+          <Compass className="mx-auto h-10 w-10 text-amber-500" strokeWidth={1.25} />
           <h3 className="font-serif-cn mt-4 text-xl text-muted-foreground">需要重新识别认知方向</h3>
           <p className="mt-2 text-sm text-muted-foreground/80">系统已升级到方向+子领域模型，请重新完成诊断</p>
           <button
@@ -213,16 +213,29 @@ export function ChallengePage() {
   );
 }
 
-// 单张挑战卡片（v6.0：显示方向标签 + 子领域名称）
+// 单张挑战卡片（v6.0：显示方向标签 + 子领域名称；v6.2：认知跳跃特殊样式）
 function ChallengeCard({ item, index, onClick }: { item: ChallengeItem; index: number; onClick: () => void }) {
+  const isLeap = item.isCognitiveLeap;
   return (
     <motion.button
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4 }}
       onClick={onClick}
-      className="group relative flex flex-col overflow-hidden rounded-xl border border-border bg-card p-5 text-left transition-colors hover:border-primary/30"
+      className={cn(
+        "group relative flex flex-col overflow-hidden rounded-xl border p-5 text-left transition-colors",
+        isLeap
+          ? "border-primary/30 bg-primary/5 hover:border-primary/50"
+          : "border-border bg-card hover:border-primary/30"
+      )}
     >
+      {/* 认知跳跃标记 */}
+      {isLeap && (
+        <div className="mb-3 flex items-center gap-1.5 rounded-md bg-primary/10 px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-primary">
+          <Zap className="h-3 w-3" /> 认知跳跃
+        </div>
+      )}
+
       {/* 顶部：难度 + 方向标签 */}
       <div className="mb-4 flex items-center justify-between gap-2">
         <span className={cn("shrink-0 rounded border px-1.5 py-0.5 text-[11px] font-semibold", DIFF_BADGE[item.difficultyLevel])}>

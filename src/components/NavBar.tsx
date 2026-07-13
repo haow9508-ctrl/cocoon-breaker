@@ -7,9 +7,9 @@ import { useAppStore } from "../store/useAppStore";
 import { cn } from "@/lib/utils";
 
 const DIFF_STYLES: Record<string, string> = {
-  L1: "text-emerald-400/90 border-emerald-500/20 bg-emerald-500/5",
-  L2: "text-amber-400/90 border-amber-500/20 bg-amber-500/5",
-  L3: "text-red-400/90 border-red-500/20 bg-red-500/5",
+  L1: "text-emerald-700 border-emerald-600/30 bg-emerald-50",
+  L2: "text-amber-700 border-amber-600/30 bg-amber-50",
+  L3: "text-red-700 border-red-600/30 bg-red-50",
 };
 
 const NAV_ITEMS = [

@@ -23,21 +23,21 @@ const EXPOSURE_META: Record<ExposureKey, {
 }> = {
   high: {
     label: "已接触",
-    dotClass: "bg-emerald-400",
-    textClass: "text-emerald-400/90",
-    rowClass: "border-emerald-500/15 bg-emerald-500/[0.03]",
+    dotClass: "bg-emerald-600",
+    textClass: "text-emerald-700",
+    rowClass: "border-emerald-600/20 bg-emerald-50/50",
   },
   low: {
     label: "偶尔接触",
-    dotClass: "bg-amber-400",
-    textClass: "text-amber-400/90",
-    rowClass: "border-amber-500/15 bg-amber-500/[0.03]",
+    dotClass: "bg-amber-500",
+    textClass: "text-amber-700",
+    rowClass: "border-amber-600/20 bg-amber-50/50",
   },
   none: {
     label: "未接触",
-    dotClass: "bg-blue-500/0 border-2 border-dashed border-blue-500/50",
-    textClass: "text-blue-400/90",
-    rowClass: "border-blue-500/15 bg-blue-500/[0.03]",
+    dotClass: "bg-blue-500/0 border-2 border-dashed border-blue-500/60",
+    textClass: "text-blue-700",
+    rowClass: "border-blue-600/20 bg-blue-50/40",
   },
 };
 
@@ -116,7 +116,7 @@ export function DirectionTreePage() {
   if (error) {
     return (
       <div className="mx-auto max-w-3xl px-5 pt-32">
-        <div className="rounded-xl border border-red-500/20 bg-red-500/10 p-5 text-sm text-red-300">{error}</div>
+        <div className="rounded-xl border border-red-200 bg-red-50 p-5 text-sm text-red-700">{error}</div>
       </div>
     );
   }
@@ -141,7 +141,7 @@ export function DirectionTreePage() {
       {/* 页头 */}
       <motion.header initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
         <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-muted-foreground/70">
-          <span className="h-1 w-6 bg-white/30" />
+          <span className="h-1 w-6 bg-muted-foreground/30" />
           方向树
         </div>
         <h1 className="font-serif-cn mt-3 text-3xl font-semibold tracking-wide sm:text-4xl">
@@ -229,7 +229,7 @@ export function DirectionTreePage() {
                           {sub.exposure === "high" ? (
                             <CheckCircle2 className={cn("h-5 w-5 shrink-0", meta.textClass)} strokeWidth={1.5} />
                           ) : sub.exposure === "low" ? (
-                            <Circle className={cn("h-5 w-5 shrink-0 fill-amber-500/20 text-amber-500", meta.textClass)} strokeWidth={1.5} />
+                            <Circle className={cn("h-5 w-5 shrink-0 fill-amber-500/15 text-amber-600", meta.textClass)} strokeWidth={1.5} />
                           ) : (
                             <CircleDashed className={cn("h-5 w-5 shrink-0", meta.textClass)} strokeWidth={1.5} />
                           )}
@@ -240,7 +240,7 @@ export function DirectionTreePage() {
                           </div>
 
                           {sub.exposure === "none" && (
-                            <span className="rounded bg-blue-500/15 px-1.5 py-0.5 text-[9px] uppercase tracking-wider text-blue-300">
+                            <span className="rounded bg-blue-100 px-1.5 py-0.5 text-[9px] uppercase tracking-wider text-blue-700">
                               待拓展
                             </span>
                           )}
@@ -260,7 +260,7 @@ export function DirectionTreePage() {
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         onClick={() => setShowAddDirection(true)}
-        className="mt-6 flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-border bg-card/50 py-4 text-sm text-muted-foreground transition-colors duration-200 hover:border-white/[0.2] hover:bg-card hover:text-muted-foreground"
+        className="mt-6 flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-border bg-card/50 py-4 text-sm text-muted-foreground transition-colors duration-200 hover:border-border hover:bg-accent hover:text-foreground"
       >
         <Plus className="h-4 w-4" strokeWidth={1.75} />
         添加新大方向
@@ -357,9 +357,9 @@ export function DirectionTreePage() {
         animate={{ opacity: 1, y: 0 }}
         className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-3"
       >
-        <StatBox label="已接触子领域" value={touchedCount} accent="text-emerald-400/90" />
-        <StatBox label="未接触子领域" value={untouchedCount} accent="text-blue-400/90" />
-        <StatBox label="认知方向数" value={directions.length} accent="text-foreground/85" />
+        <StatBox label="已接触子领域" value={touchedCount} accent="text-emerald-700" />
+        <StatBox label="未接触子领域" value={untouchedCount} accent="text-blue-700" />
+        <StatBox label="认知方向数" value={directions.length} accent="text-foreground" />
       </motion.div>
     </div>
   );

@@ -237,7 +237,7 @@ export function DiagScanPage() {
                 </p>
               </div>
               {error && (
-                <p className="mt-4 rounded-md border border-red-500/20 bg-red-500/10 p-3 text-center text-xs text-red-300">
+                <p className="mt-4 rounded-md border border-red-200 bg-red-50 p-3 text-center text-xs text-red-700">
                   {error}
                 </p>
               )}
@@ -259,7 +259,7 @@ export function DiagScanPage() {
                 <span className="text-muted-foreground/30">·</span>
                 <span>
                   {canFinish ? (
-                    <span className="text-emerald-400/80">可以生成档案，或继续深入</span>
+                    <span className="text-emerald-700">可以生成档案，或继续深入</span>
                   ) : (
                     <span>至少 {MIN_ROUNDS} 轮以生成档案</span>
                   )}
@@ -371,7 +371,7 @@ export function DiagScanPage() {
               </div>
 
               {error && (
-                <p className="mt-3 rounded-md border border-red-500/20 bg-red-500/10 p-3 text-center text-xs text-red-300">
+                <p className="mt-3 rounded-md border border-red-200 bg-red-50 p-3 text-center text-xs text-red-700">
                   {error}
                 </p>
               )}

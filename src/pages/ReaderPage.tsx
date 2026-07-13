@@ -5,22 +5,29 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Star, Clock, ArrowLeft, Loader2, Send, Sparkles, TrendingUp, Trophy, Compass } from "lucide-react";
+import { Star, Clock, ArrowLeft, Loader2, Send, Sparkles, TrendingUp, Trophy, Compass, Target } from "lucide-react";
 import { getContentDetail, submitAssessment, type ChallengeItem } from "../lib/apiClient";
 import { profileManager } from "../lib/profileManager";
 import { cn } from "@/lib/utils";
+
+interface PracticeScaffold {
+  action: string;
+  timeframe: string;
+  successHint: string;
+}
 
 interface AssessResult {
   newDifficulty: "L1" | "L2" | "L3";
   difficultyChanged: boolean;
   newMilestones: Array<{ type: string; description: string }>;
   coachFeedback: string;
+  practiceScaffold?: PracticeScaffold | null;
 }
 
 const DIFF_BADGE: Record<string, string> = {
-  L1: "text-emerald-400/90 border-emerald-500/20 bg-emerald-500/5",
-  L2: "text-amber-400/90 border-amber-500/20 bg-amber-500/5",
-  L3: "text-red-400/90 border-red-500/20 bg-red-500/5",
+  L1: "text-emerald-700 border-emerald-600/30 bg-emerald-50",
+  L2: "text-amber-700 border-amber-600/30 bg-amber-50",
+  L3: "text-red-700 border-red-600/30 bg-red-50",
 };
 
 export function ReaderPage() {
@@ -105,7 +112,7 @@ export function ReaderPage() {
   if (error && !item) {
     return (
       <div className="mx-auto max-w-2xl px-5 pt-32">
-        <div className="rounded-xl border border-red-500/20 bg-red-500/10 p-5 text-sm text-red-300">{error}</div>
+        <div className="rounded-xl border border-red-200 bg-red-50 p-5 text-sm text-red-700">{error}</div>
         <button
           onClick={() => navigate("/")}
           className="mt-4 flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
@@ -200,7 +207,7 @@ export function ReaderPage() {
                     <Star
                       className={cn(
                         "h-7 w-7 transition-colors",
-                        (hoverRating || rating) >= n ? "fill-amber-500 text-amber-400/90" : "text-muted-foreground/30"
+                        (hoverRating || rating) >= n ? "fill-amber-500 text-amber-600" : "text-muted-foreground/30"
                       )}
                       strokeWidth={1.5}
                     />
@@ -237,7 +244,7 @@ export function ReaderPage() {
               </button>
 
               {error && (
-                <p className="mt-3 rounded-lg border border-red-500/20 bg-red-500/10 p-2.5 text-center text-xs text-red-300">
+                <p className="mt-3 rounded-lg border border-red-200 bg-red-50 p-2.5 text-center text-xs text-red-700">
                   {error}
                 </p>
               )}
@@ -277,9 +284,9 @@ function ResultView({ result, onBack }: { result: AssessResult; onBack: () => vo
         <motion.div
           initial={{ opacity: 0, scale: 0.97 }}
           animate={{ opacity: 1, scale: 1 }}
-          className="flex items-center gap-3 rounded-xl border border-amber-500/20 bg-amber-500/[0.04] p-4"
+          className="flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4"
         >
-          <TrendingUp className="h-5 w-5 text-amber-400/90" />
+          <TrendingUp className="h-5 w-5 text-amber-600" />
           <div className="text-[13px]">
             <span className="text-muted-foreground">难度已调整至 </span>
             <span className={cn("font-semibold", DIFF_BADGE[result.newDifficulty])}>
@@ -290,22 +297,52 @@ function ResultView({ result, onBack }: { result: AssessResult; onBack: () => vo
         </motion.div>
       )}
 
+      {/* v6.2：迷你实践落地脚手架 */}
+      {result.practiceScaffold && result.practiceScaffold.action && (
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+          className="rounded-xl border border-primary/20 bg-primary/5 p-5"
+        >
+          <div className="mb-3 flex items-center gap-2">
+            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/10">
+              <Target className="h-4 w-4 text-primary" />
+            </span>
+            <h3 className="font-serif-cn text-base font-medium">今天落地一件事</h3>
+          </div>
+          <p className="text-[15px] font-medium leading-relaxed text-foreground">
+            {result.practiceScaffold.action}
+          </p>
+          <div className="mt-3 flex items-center gap-4 text-[12px] text-muted-foreground">
+            <span className="flex items-center gap-1">
+              <Clock className="h-3 w-3" /> {result.practiceScaffold.timeframe}
+            </span>
+            {result.practiceScaffold.successHint && (
+              <span className="text-muted-foreground/80">
+                做对的标志 · {result.practiceScaffold.successHint}
+              </span>
+            )}
+          </div>
+        </motion.div>
+      )}
+
       {/* 里程碑解锁动画 */}
       <AnimatePresence>
         {showMilestones && result.newMilestones.length > 0 && (
           <motion.div
             initial={{ opacity: 0, y: 16, scale: 0.96 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            className="rounded-xl border border-border bg-gradient-to-b from-card to-transparent p-6"
+            className="rounded-xl border border-border bg-card p-6"
           >
             <div className="mb-3 flex items-center gap-2">
               <motion.span
                 initial={{ rotate: -30, opacity: 0 }}
                 animate={{ rotate: 0, opacity: 1 }}
                 transition={{ type: "spring" }}
-                className="flex h-8 w-8 items-center justify-center rounded-full bg-amber-500/10"
+                className="flex h-8 w-8 items-center justify-center rounded-full bg-amber-100"
               >
-                <Trophy className="h-4 w-4 text-amber-400/90" />
+                <Trophy className="h-4 w-4 text-amber-600" />
               </motion.span>
               <h3 className="font-serif-cn text-base font-medium">解锁新里程碑</h3>
             </div>

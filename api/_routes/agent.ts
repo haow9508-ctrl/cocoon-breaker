@@ -6,7 +6,7 @@
 import { Router, Request, Response } from "express";
 import { analyzeDirections } from "../_agent/analyzer.js";
 import { generateDailyChallenge, getChallengeDetail, ImpactRecord, DecisionInput } from "../_agent/recommender.js";
-import { diagnoseConversation, isApiKeyConfigured, coachFeedback, buildCoachContext, extractKeyInsight } from "../_agent/llm.js";
+import { diagnoseConversation, isApiKeyConfigured, coachFeedback, buildCoachContext, extractKeyInsight, generatePracticeScaffold, type PracticeScaffold } from "../_agent/llm.js";
 import { chatWithCoach, buildProfileFromDirections } from "../_agent/coach.js";
 import { adjustDifficulty, checkMilestones } from "../_agent/assessor.js";
 import type { CognitiveDirection } from "../_knowledge/domains.js";
@@ -155,6 +155,20 @@ router.post("/assess", async (req: Request, res: Response) => {
       console.error("[Agent] extractKeyInsight failed:", e.message);
     }
 
+    // v6.2：生成迷你实践落地脚手架
+    let practiceScaffold: PracticeScaffold | null = null;
+    try {
+      practiceScaffold = await generatePracticeScaffold(
+        title,
+        directionName || "",
+        subfieldName || "",
+        impactScore,
+        reflection || ""
+      );
+    } catch (e: any) {
+      console.error("[Agent] practiceScaffold failed:", e.message);
+    }
+
     res.json({
       success: true,
       data: {
@@ -164,6 +178,7 @@ router.post("/assess", async (req: Request, res: Response) => {
         newMilestones,
         coachFeedback: feedback,
         keyInsight,
+        practiceScaffold,  // v6.2：实践落地脚手架
         updatedImpactHistory: updatedHistory,
       },
     });

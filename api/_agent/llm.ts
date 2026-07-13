@@ -108,14 +108,23 @@ ${renderDirections(profile.directions || [])}
  * 内容生成的抗 GEO prompt 增强
  * 防止 DeepSeek 生成被 GEO 优化的"流行叙事"
  */
-export const ANTI_GEO_DIRECTIVE = `重要规则 — 抗 GEO 污染 + 方向内约束：
+export const ANTI_GEO_DIRECTIVE = `重要规则 — 抗 GEO 污染 + 方向内约束 + 去AI味：
 1. 不要生成搜索引擎排名靠前的"流行科普叙事"——那些往往是 GEO 优化的产物
 2. 优先选择被主流叙事忽略的边缘视角、争议性理论、非共识观点
 3. 如果某内容有"流行版本"和"真实版本"，用真实版本
 4. 标注内容的争议性：哪些是共识，哪些是边缘观点
 5. 避免"鸡汤化"简化——保留复杂性，不要为了易懂而扭曲
 6. 【方向内约束】严格限定在用户的认知大方向内推荐，不得跨方向——学 Python 的用户不推美妆/体育/搞笑，只在 Python 大方向内拓展（如并发编程/编程范式/类比语言）
-7. 【方向内约束】推荐的子领域必须在用户已识别的认知大方向内，类比拓展也须在同方向内（如 Python→C/Rust 是编程认知内的类比，而非跳到无关领域）`;
+7. 【方向内约束】推荐的子领域必须在用户已识别的认知大方向内，类比拓展也须在同方向内（如 Python→C/Rust 是编程认知内的类比，而非跳到无关领域）
+8. 【去AI味·写作风格】禁止以下AI模板表达：
+   - 禁止"第一/第二/第三"罗列式结构，改用自然段落
+   - 禁止"值得注意的是""综上所述""总而言之""不难发现"等模板连接词
+   - 禁止"作为AI""让我来""我们可以看到"等自我指涉
+   - 禁止连续使用感叹号，禁止"太棒了！""继续加油！"等机械鼓励
+   - 禁止在结尾做总结性收尾（"所以，这就是为什么..."）
+   - 要像有独立观点的人写的，有棱角、有判断、有立场，不是中立百科
+9. 【去AI味·内容深度】标题要有观点或悬念，不要百科式标题（"什么是X"→"X为什么打破了主流认知"）
+10. 【去AI味·教练反馈】反馈要有具体观点，不要空泛鼓励。宁可说"这个方向你可能想偏了"，也不要说"你的思考很有深度"`;
 
 // ===== Agent Pipeline ① 诊断层 =====
 
@@ -149,8 +158,9 @@ export async function diagnoseConversation(
 
 规则：
 - 每次只问一个问题，不要一次问多个
-- 语气像朋友聊天，不要像医生问诊
-- 永远不要说"作为一个AI"
+- 语气像朋友聊天，不要像医生问诊或心理咨询师
+- 永远不要说"作为一个AI"或"让我来帮你"
+- 不要用"了解了""明白了"等模板回复开头
 - 每轮回复不超过 80 字
 - 用户昵称：${nickname}
 - 对话轮数灵活——用户可在任意时刻主动结束并生成档案
@@ -418,16 +428,19 @@ export async function coachFeedback(
   const messages: ChatMessage[] = [
     {
       role: "system",
-      content: `你是「茧房爆破器」的认知成长教练。用户刚刚读完一篇方向内拓展内容并完成了冲击自评。
+      content: `你是「茧房爆破器」的认知成长教练。用户刚读完一篇方向内拓展内容并完成了冲击自评。
 
 ${context}
 
-你的任务：基于用户的冲击自评和反思，给出一段反思引导（不超过 100 字）。
-- 如果冲击分高(4-5星)：肯定这次方向内的认知突破，引导深入
-- 如果冲击分中(3星)：补充一个视角，帮助用户看到更多
-- 如果冲击分低(1-2星)：不否定用户感受，温和地指出可能错过的角度
+你的任务：基于用户的冲击自评和反思，给出一段反馈（不超过 100 字）。
 
-语气像朋友，不要说教。永远不要说"作为一个AI"。`,
+人格设定——你是一个有独立观点的朋友，不是客服：
+- 冲击分高(4-5星)：不要说"太棒了"，要说具体哪里好、或者指出一个更深的追问
+- 冲击分中(3星)：直接补充一个用户可能错过的视角，不要铺垫
+- 冲击分低(1-2星)：可以质疑——"这篇内容对你来说可能太浅了"或"你是不是已经有这个认知了"
+- 要有立场，不要骑墙。可以不同意用户的反思
+- 像微信聊天，一次只说一件事，不要罗列
+- 禁止"作为AI""让我来""你的思考很有深度"`,
     },
     {
       role: "user",
@@ -567,3 +580,185 @@ ${context}
 }
 
 // ===== Agent Pipeline ⑦ 对话层（在 coach.ts 中实现） =====
+
+// ===== 认知跳跃机制（v6.2）=====
+// 在用户方向内拓展到一定深度后，引入"有认知连接的远距离类比"
+// 不是跨方向推荐（学 Python 推美妆是错的），而是有认知桥梁的跨界启发
+// 类似查理·芒格的"多元思维模型"——刻意跨学科但底层逻辑相通
+
+/**
+ * 判断是否触发认知跳跃
+ * 条件：某方向已读 ≥ 5 篇 + 该方向未接触子领域已拓展过半
+ */
+export function shouldTriggerCognitiveLeap(
+  directionId: string,
+  directions: CognitiveDirection[],
+  impactHistory: Array<{ directionId: string; subfieldId: string }>
+): boolean {
+  const direction = directions.find((d) => d.id === directionId);
+  if (!direction) return false;
+
+  // 该方向的已读记录
+  const directionImpacts = impactHistory.filter((r) => r.directionId === directionId);
+  if (directionImpacts.length < 5) return false;
+
+  // 该方向的未接触子领域数量
+  const unexploredCount = direction.subfields.filter((s) => s.exposure === "none").length;
+  if (unexploredCount === 0) return false;
+
+  // 已拓展的未接触子领域数量
+  const exploredSubfieldIds = new Set(directionImpacts.map((r) => r.subfieldId));
+  const exploredUnexploredCount = direction.subfields.filter(
+    (s) => s.exposure === "none" && exploredSubfieldIds.has(s.id)
+  ).length;
+
+  // 已拓展过半时触发
+  return exploredUnexploredCount >= Math.ceil(unexploredCount / 2);
+}
+
+/**
+ * 认知跳跃内容生成
+ * 生成一篇有认知桥梁的远距离类比内容
+ * - 用户方向：如 Python 编程
+ * - 跳跃目标：如 哲学分类学（类型系统 → 分类学的认知桥梁）
+ * - coachGuidance 必须明确说明认知桥梁
+ */
+export async function generateCognitiveLeap(
+  direction: { id: string; name: string },
+  knownSubfields: string[],
+  recentTitles: string[]
+): Promise<ChallengeContent | null> {
+  const messages: ChatMessage[] = [
+    {
+      role: "system",
+      content: `你是「茧房爆破器」的认知跳跃引擎。用户在「${direction.name}」方向已经深耕到一定深度，现在需要一次"有认知连接的远距离类比"——类似查理·芒格的多元思维模型。
+
+这不是跨方向推荐（不是推无关内容），而是找一个底层逻辑相通的远领域，用认知桥梁连接。
+
+核心规则：
+1. 跳跃目标必须是"看似无关但底层逻辑相通"的领域
+   - 编程类型系统 → 哲学分类学（底层：如何给世界分类）
+   - Python GIL 锁 → 管理学资源瓶颈（底层：有限资源的并发调度）
+   - 古诗意境 → 电影构图（底层：用有限信息激发想象）
+   - 股市波动 → 群体心理学（底层：群体非理性行为）
+2. coachGuidance 必须明确说明认知桥梁——用户已接触的子领域如何映射到跳跃目标
+3. 标题要有冲击力，让人产生"这两个领域居然有关联"的惊喜感
+4. description 150-200 字，要有洞察力，不是科普
+5. why 说明这次跳跃能带来什么认知突破
+
+${ANTI_GEO_DIRECTIVE}
+
+输出格式：纯 JSON 对象，包含：
+- directionId, directionName, subfieldId, subfieldName
+- title, why, description, source, readTimeMinutes, coachGuidance
+- cognitiveLeap: true（标记为认知跳跃内容）
+- leapBridge: 认知桥梁描述（一句话说明两个领域的底层连接）
+
+只输出 JSON 对象。`,
+    },
+    {
+      role: "user",
+      content: `用户深耕方向：${direction.name}
+用户已接触子领域：${knownSubfields.join("、") || "暂无"}
+最近读过的内容：${recentTitles.join("、") || "暂无"}
+
+请生成一次认知跳跃——找一个与「${direction.name}」底层逻辑相通的远领域，用认知桥梁连接它们。`,
+    },
+  ];
+
+  try {
+    const res = await chatCompletion(messages, { temperature: 0.9, maxTokens: 800 });
+    const jsonMatch = res.content.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      const item = JSON.parse(jsonMatch[0]);
+      return {
+        directionId: direction.id,
+        directionName: direction.name,
+        subfieldId: item.subfieldId || `leap_${Date.now()}`,
+        subfieldName: item.subfieldName || "认知跳跃",
+        title: item.title || "",
+        why: item.why || "",
+        description: item.description || "",
+        source: item.source || "",
+        readTimeMinutes: item.readTimeMinutes || 7,
+        difficultyLevel: "L3",
+        coachGuidance: item.coachGuidance || "",
+        sourceType: "deepseek_fallback",
+        sourceUrl: item.sourceUrl || "",
+      };
+    }
+  } catch (e: any) {
+    console.error("[LLM] 认知跳跃生成失败:", e.message);
+  }
+
+  return null;
+}
+
+// ===== 迷你实践落地脚手架（v6.2）=====
+// 读完内容后，给用户一个具体、可在 24h 内完成的行动建议
+// 让认知不只停留在"读过了"，而是转化为行为改变
+
+export interface PracticeScaffold {
+  action: string;       // 具体行动（一句话，祈使句）
+  timeframe: string;    // 时间框架（如"今天内"/"明早"/"这周"）
+  successHint: string;  // 成功标志（怎么知道做对了）
+}
+
+export async function generatePracticeScaffold(
+  title: string,
+  directionName: string,
+  subfieldName: string,
+  impactScore: number,
+  reflection: string
+): Promise<PracticeScaffold | null> {
+  const messages: ChatMessage[] = [
+    {
+      role: "system",
+      content: `你是认知成长教练的行动落地助手。用户刚读完一篇内容并完成自评，现在需要给他一个具体的、可在 24 小时内完成的行动建议。
+
+要求：
+1. action 必须是具体可执行的行动，不是"多思考"这种空话
+   - 好："今天写代码时，找一个函数刻意用函数式风格重写"
+   - 坏："多思考编程范式"
+2. timeframe 是时间框架，必须 24 小时内可完成
+3. successHint 是成功标志——怎么知道这个行动做对了
+4. 行动必须与用户读的内容和方向相关
+5. 如果冲击分低（≤2），给一个更轻量的行动（如"今天遇到一个问题时，多问自己一句：还有别的范式吗？"）
+
+禁止：
+- 不要说"建议你""你可以尝试"等铺垫，直接给行动
+- 不要罗列多个行动，只给一个
+- 不要用感叹号
+
+输出 JSON：{ "action": "...", "timeframe": "...", "successHint": "..." }
+只输出 JSON。`,
+    },
+    {
+      role: "user",
+      content: `读的内容：《${title}》
+方向：${directionName}
+子领域：${subfieldName}
+冲击自评：${impactScore}星
+用户反思：${reflection || "（未写反思）"}
+
+给一个 24 小时内可完成的行动建议：`,
+    },
+  ];
+
+  try {
+    const res = await chatCompletion(messages, { temperature: 0.6, maxTokens: 200 });
+    const jsonMatch = res.content.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      const parsed = JSON.parse(jsonMatch[0]);
+      return {
+        action: parsed.action || "",
+        timeframe: parsed.timeframe || "今天内",
+        successHint: parsed.successHint || "",
+      };
+    }
+  } catch (e: any) {
+    console.error("[LLM] 实践脚手架生成失败:", e.message);
+  }
+
+  return null;
+}
