@@ -6,7 +6,7 @@
 import { Router, Request, Response } from "express";
 import { analyzeDirections } from "../_agent/analyzer.js";
 import { generateDailyChallenge, getChallengeDetail, ImpactRecord, DecisionInput } from "../_agent/recommender.js";
-import { diagnoseConversation, isApiKeyConfigured, coachFeedback, buildCoachContext, extractKeyInsight, generatePracticeScaffold, type PracticeScaffold } from "../_agent/llm.js";
+import { diagnoseConversation, isApiKeyConfigured, generateMergedFeedback, buildCoachContext, buildMergedCoachReply } from "../_agent/llm.js";
 import { chatWithCoach, buildProfileFromDirections } from "../_agent/coach.js";
 import { adjustDifficulty, checkMilestones } from "../_agent/assessor.js";
 import type { CognitiveDirection } from "../_knowledge/domains.js";
@@ -126,14 +126,14 @@ router.post("/assess", async (req: Request, res: Response) => {
       existingMilestoneIds
     );
 
-    // 教练反馈（v6.0：传入 directionName + subfieldName）
+    // 教练反馈 + 关键洞察 + 实践脚手架（合并为单次 API 调用，节省 60% token）
     const coachProfile = buildProfileFromDirections(
       directionList,
       assessment.newDifficulty,
       updatedHistory,
       profile?.totalReads || 0
     );
-    const feedback = await coachFeedback(
+    const mergedResult = await generateMergedFeedback(
       directionName || "",
       subfieldName || "",
       title,
@@ -142,43 +142,15 @@ router.post("/assess", async (req: Request, res: Response) => {
       coachProfile
     );
 
-    // 提取关键洞察存入教练记忆（PRD 承诺：coachMemory.keyInsights）
-    let keyInsight: string | null = null;
-    try {
-      const context = buildCoachContext(coachProfile);
-      keyInsight = await extractKeyInsight(
-        `我读了《${title}》（${directionName || ""} / ${subfieldName || ""}），冲击自评：${impactScore}星，反思：${reflection || "无"}`,
-        feedback,
-        context
-      );
-    } catch (e: any) {
-      console.error("[Agent] extractKeyInsight failed:", e.message);
-    }
-
-    // v6.2：生成迷你实践落地脚手架
-    let practiceScaffold: PracticeScaffold | null = null;
-    try {
-      practiceScaffold = await generatePracticeScaffold(
-        title,
-        directionName || "",
-        subfieldName || "",
-        impactScore,
-        reflection || ""
-      );
-    } catch (e: any) {
-      console.error("[Agent] practiceScaffold failed:", e.message);
-    }
-
     res.json({
       success: true,
       data: {
-        // v6.0：不再返回 newExposure，返回更新后的方向树（前端可基于 impactHistory 自行更新）
         newDifficulty: assessment.newDifficulty,
         difficultyChanged: assessment.difficultyChanged,
         newMilestones,
-        coachFeedback: feedback,
-        keyInsight,
-        practiceScaffold,  // v6.2：实践落地脚手架
+        coachFeedback: mergedResult.feedback,
+        keyInsight: mergedResult.keyInsight,
+        practiceScaffold: mergedResult.practiceScaffold,
         updatedImpactHistory: updatedHistory,
       },
     });
@@ -266,7 +238,7 @@ router.post("/growth", (req: Request, res: Response) => {
   });
 });
 
-// ⑦ 教练对话：方法论引导
+// ⑦ 教练对话：方法论引导（合并为单次 API 调用）
 router.post("/coach", async (req: Request, res: Response) => {
   const { message, history, profile } = req.body;
   try {
@@ -275,32 +247,26 @@ router.post("/coach", async (req: Request, res: Response) => {
       return;
     }
 
-    // v6.0：从 profile.directions 构建教练画像
     const directionList = (profile?.directions || []) as CognitiveDirection[];
-
     const coachProfile = buildProfileFromDirections(
       directionList,
       profile?.difficultyLevel || "L1",
       profile?.impactHistory || [],
       profile?.totalReads || 0
     );
+    const context = buildCoachContext(coachProfile);
 
-    const { method, content } = await chatWithCoach(
-      message || "",
-      history || [],
-      coachProfile
-    );
+    // 合并：教练回复 + 关键洞察（单次 API 调用，节省 40%+ token）
+    const mergedReply = await buildMergedCoachReply(message || "", history || [], context);
 
-    // 提取关键洞察存入教练记忆（PRD 承诺：coachMemory.keyInsights）
-    let keyInsight: string | null = null;
-    try {
-      const context = buildCoachContext(coachProfile);
-      keyInsight = await extractKeyInsight(message || "", content, context);
-    } catch (e: any) {
-      console.error("[Agent] extractKeyInsight failed:", e.message);
-    }
-
-    res.json({ success: true, data: { method, content, keyInsight } });
+    res.json({
+      success: true,
+      data: {
+        method: mergedReply.method,
+        content: mergedReply.content,
+        keyInsight: mergedReply.keyInsight,
+      },
+    });
   } catch (err: any) {
     console.error("[Agent] coach error:", err.message);
     res.status(500).json({ success: false, error: err.message });

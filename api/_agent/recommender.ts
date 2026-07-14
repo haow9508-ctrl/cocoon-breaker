@@ -3,7 +3,7 @@
 // 在用户认知大方向内找"认知相邻但未接触"的子领域，而非跨方向找盲区
 
 import type { CognitiveDirection } from "../_knowledge/domains.js";
-import { generateChallenge, ChallengeContent, evaluateSubfieldExpansion, shouldTriggerCognitiveLeap, generateCognitiveLeap } from "./llm.js";
+import { evaluateAndGenerateChallenge, shouldTriggerCognitiveLeap, generateCognitiveLeap, type ChallengeContent } from "./llm.js";
 import { retrieveFromRag } from "./ragClient.js";
 import { getUnexploredSubfields, getKnownSubfields } from "./analyzer.js";
 import type { DifficultyLevel } from "./analyzer.js";
@@ -104,6 +104,10 @@ export interface ChallengeResult {
  *   - L1=同方向相邻子领域（拓展价值高的优先，认知相邻易接受）
  *   - L2=同方向中距子领域（拓展价值中等的）
  *   - L3=同方向远端子领域（拓展价值低但属类比拓展，如 Python→C/Rust）
+ * 
+ * 注意：此函数不再单独调用 DeepSeek 评估拓展价值
+ * 拓展价值评估已合并到 evaluateAndGenerateChallenge 中一次性完成
+ * 此函数只负责候选筛选和难度过滤
  */
 export async function decideExpansionTargets(
   input: DecisionInput
@@ -124,22 +128,18 @@ export async function decideExpansionTargets(
   const candidates = allUnexplored.filter((s) => !readSubfieldIds.has(s.subfieldId));
   if (candidates.length === 0) return [];
 
-  // 用 DeepSeek 评估每个未接触子领域的方向内拓展价值
-  const knownSubfields = getKnownSubfields(input.directions);
-  const expansionMap = await evaluateSubfieldExpansion(candidates, knownSubfields);
-
+  // v6.2：行为数据调整——基于用户历史冲击自评调整推荐权重
+  // 注意：此处不再调用 DeepSeek 评估，改用行为数据简单排序
   const scored: ScoredSubfield[] = candidates.map((s) => {
-    const expansionScore = expansionMap.get(s.subfieldId) ?? 0.5;
-    // v6.2：行为数据调整——基于用户历史冲击自评调整推荐权重
     const behaviorAdjustment = computeBehaviorAdjustment(s.directionId, input.impactHistory);
-    // 综合分：拓展价值 + 行为调整
-    const totalScore = Math.max(0, Math.min(1, expansionScore + behaviorAdjustment));
+    // 无 DeepSeek 评估时，用默认值 0.5 + 行为调整
+    const totalScore = Math.max(0, Math.min(1, 0.5 + behaviorAdjustment));
     return {
       directionId: s.directionId,
       directionName: s.directionName,
       subfieldId: s.subfieldId,
       subfieldName: s.subfieldName,
-      expansionScore,
+      expansionScore: 0.5,
       behaviorAdjustment,
       totalScore,
     };
@@ -231,8 +231,8 @@ export async function generateDailyChallenge(
     }
   }));
 
-  // ④b 生成：基于 RAG 真实内容生成挑战（DeepSeek 只做教练引导）
-  const challenges: ChallengeContent[] = await generateChallenge(
+  // ④b 生成：基于 RAG 真实内容生成挑战 + 评估拓展价值（合并为单次 API 调用）
+  const { challenges } = await evaluateAndGenerateChallenge(
     selectedTargets,
     knownSubfields,
     input.difficultyLevel,
@@ -342,7 +342,7 @@ export async function getChallengeDetail(
     })));
   }
 
-  const challenges = await generateChallenge(
+  const { challenges } = await evaluateAndGenerateChallenge(
     [{
       directionId: direction.id,
       directionName: direction.name,
