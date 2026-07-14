@@ -239,22 +239,29 @@ export async function generateDailyChallenge(
     ragResultsBySubfield
   );
 
-  const items: ChallengeItem[] = challenges.map((c, idx) => ({
-    id: `${c.subfieldId}_${Date.now()}_${idx}`,
-    directionId: c.directionId,
-    directionName: c.directionName,
-    subfieldId: c.subfieldId,
-    subfieldName: c.subfieldName,
-    title: c.title,
-    why: c.why,
-    description: c.description,
-    source: c.source,
-    readTimeMinutes: c.readTimeMinutes,
-    difficultyLevel: c.difficultyLevel,
-    coachGuidance: c.coachGuidance,
-    sourceType: c.sourceType,
-    sourceUrl: c.sourceUrl,
-  }));
+  // 用 selectedTargets 的 id 覆盖 LLM 返回的 id（LLM 可能缩写或改写 directionId/subfieldId）
+  // 按 subfieldName 匹配（LLM 通常不改 name），匹配不到则按 index
+  const items: ChallengeItem[] = challenges.map((c, idx) => {
+    const matchedTarget = selectedTargets.find(
+      t => t.subfieldName === c.subfieldName || t.subfieldId === c.subfieldId
+    ) || selectedTargets[idx] || selectedTargets[0];
+    return {
+      id: `${matchedTarget?.subfieldId || c.subfieldId}_${Date.now()}_${idx}`,
+      directionId: matchedTarget?.directionId || c.directionId,
+      directionName: matchedTarget?.directionName || c.directionName,
+      subfieldId: matchedTarget?.subfieldId || c.subfieldId,
+      subfieldName: matchedTarget?.subfieldName || c.subfieldName,
+      title: c.title,
+      why: c.why,
+      description: c.description,
+      source: c.source,
+      readTimeMinutes: c.readTimeMinutes,
+      difficultyLevel: c.difficultyLevel,
+      coachGuidance: c.coachGuidance,
+      sourceType: c.sourceType,
+      sourceUrl: c.sourceUrl,
+    };
+  });
 
   // v6.2：认知跳跃触发——用户在某方向深耕到一定深度后，追加一篇远距离类比内容
   for (const direction of input.directions) {
