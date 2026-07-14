@@ -6,13 +6,13 @@
 
 import type { CognitiveDirection, SubfieldNode } from "../_knowledge/domains.js";
 
-const LLM_BASE = process.env.DEEPSEEK_BASE_URL || "https://api.deepseek.com/v1";
-const MODEL = process.env.DEEPSEEK_MODEL || "deepseek-chat";
-
-// 启动时打印当前使用的 API 配置（方便排查 Railway 部署问题）
-console.log(`[LLM] API Base: ${LLM_BASE}`);
-console.log(`[LLM] Model: ${MODEL}`);
-console.log(`[LLM] API Key: ${process.env.DEEPSEEK_API_KEY ? "已配置 (" + process.env.DEEPSEEK_API_KEY.slice(0, 8) + "...)" : "未配置"}`);
+// 动态读取（不缓存在模块级常量，确保 dotenv 加载后能读到最新值）
+function getBaseUrl(): string {
+  return process.env.DEEPSEEK_BASE_URL || "https://api.deepseek.com/v1";
+}
+function getModel(): string {
+  return process.env.DEEPSEEK_MODEL || "deepseek-chat";
+}
 
 // 运行时读取，优先使用环境变量
 function getApiKey(): string {
@@ -44,14 +44,14 @@ export async function chatCompletion(
     throw new Error("API_KEY not configured");
   }
 
-  const res = await fetch(`${LLM_BASE}/chat/completions`, {
+  const res = await fetch(`${getBaseUrl()}/chat/completions`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${apiKey}`,
     },
     body: JSON.stringify({
-      model: MODEL,
+      model: getModel(),
       messages,
       temperature: options?.temperature ?? 0.7,
       max_tokens: options?.maxTokens ?? 800,
