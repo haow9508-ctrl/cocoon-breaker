@@ -8,12 +8,22 @@ import type { CognitiveDirection, SubfieldNode } from "../_knowledge/domains.js"
 
 // 动态读取（不缓存在模块级常量，确保 dotenv 加载后能读到最新值）
 // trim() 防御 Railway 等平台在环境变量前后引入不可见字符
-// 默认值改为 Step Plan（项目已迁移，不再使用 DeepSeek 官方 API）
+// 项目已迁移到 Step Plan API，如果检测到旧的 DeepSeek 配置会自动纠正
 function getBaseUrl(): string {
-  return (process.env.DEEPSEEK_BASE_URL || "https://api.stepfun.com/step_plan/v1").trim();
+  const raw = (process.env.DEEPSEEK_BASE_URL || "").trim();
+  // 检测到旧的 DeepSeek 官方地址 → 自动纠正为 Step Plan
+  if (!raw || raw.includes("deepseek.com") || raw.includes("deepseek")) {
+    return "https://api.stepfun.com/step_plan/v1";
+  }
+  return raw;
 }
 function getModel(): string {
-  return (process.env.DEEPSEEK_MODEL || "step-3.5-flash").trim();
+  const raw = (process.env.DEEPSEEK_MODEL || "").trim();
+  // 旧的 DeepSeek 模型名 → 自动纠正为 Step Plan
+  if (!raw || raw.includes("deepseek")) {
+    return "step-3.5-flash";
+  }
+  return raw;
 }
 
 // 运行时读取，优先使用环境变量
@@ -182,14 +192,18 @@ export async function chatCompletion(
     throw new Error("API_KEY not configured");
   }
 
-  const res = await fetch(`${getBaseUrl()}/chat/completions`, {
+  const baseUrl = getBaseUrl();
+  const model = getModel();
+  console.log(`[LLM] 调用: ${baseUrl}/chat/completions | model=${model} | key后6位=...${apiKey.slice(-6)}`);
+
+  const res = await fetch(`${baseUrl}/chat/completions`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${apiKey}`,
     },
     body: JSON.stringify({
-      model: getModel(),
+      model,
       messages,
       temperature: options?.temperature ?? 0.7,
       max_tokens: options?.maxTokens ?? 2000,
