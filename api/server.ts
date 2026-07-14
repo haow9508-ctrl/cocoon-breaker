@@ -7,8 +7,8 @@ const PORT = process.env.PORT || 3001;
 
 const server = app.listen(PORT, () => {
   const apiKey = (process.env.DEEPSEEK_API_KEY || "").trim();
-  const baseUrl = (process.env.DEEPSEEK_BASE_URL || "https://api.deepseek.com/v1").trim();
-  const model = (process.env.DEEPSEEK_MODEL || "deepseek-chat").trim();
+  const baseUrl = (process.env.DEEPSEEK_BASE_URL || "https://api.stepfun.com/step_plan/v1").trim();
+  const model = (process.env.DEEPSEEK_MODEL || "step-3.5-flash").trim();
   console.log(`[Server] 茧房爆破器 Agent 运行在 http://localhost:${PORT}`);
   console.log(`[LLM] API Base: ${baseUrl}`);
   console.log(`[LLM] Model: ${model}`);

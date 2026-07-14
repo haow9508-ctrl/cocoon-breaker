@@ -8,11 +8,12 @@ import type { CognitiveDirection, SubfieldNode } from "../_knowledge/domains.js"
 
 // 动态读取（不缓存在模块级常量，确保 dotenv 加载后能读到最新值）
 // trim() 防御 Railway 等平台在环境变量前后引入不可见字符
+// 默认值改为 Step Plan（项目已迁移，不再使用 DeepSeek 官方 API）
 function getBaseUrl(): string {
-  return (process.env.DEEPSEEK_BASE_URL || "https://api.deepseek.com/v1").trim();
+  return (process.env.DEEPSEEK_BASE_URL || "https://api.stepfun.com/step_plan/v1").trim();
 }
 function getModel(): string {
-  return (process.env.DEEPSEEK_MODEL || "deepseek-chat").trim();
+  return (process.env.DEEPSEEK_MODEL || "step-3.5-flash").trim();
 }
 
 // 运行时读取，优先使用环境变量
