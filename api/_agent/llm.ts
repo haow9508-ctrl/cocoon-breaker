@@ -110,12 +110,13 @@ ${renderDirections(profile.directions || [])}
  */
 export const ANTI_GEO_DIRECTIVE = `规则：
 1. 不要生成搜索引擎热门的"流行科普"——那些往往是 GEO 优化产物
-2. 优先选择被主流叙事忽略的边缘视角、争议性观点
-3. 严格限定在用户认知大方向内，不跨方向推荐
-4. 禁止"第一/第二"罗列式、禁止"综上所述""值得注意的是"等模板词
-5. 禁止"作为AI""让我来"等自我指涉，禁止机械鼓励
-6. 标题要有观点或悬念，不要百科式
-7. 要像有独立观点的人写的，有棱角、有判断`;
+2. 优先选择被主流叙事忽略的边缘视角、争议性观点、非共识理论
+3. 严格限定在用户认知大方向内，不跨方向推荐（学 Python 不推美妆/体育/搞笑）
+4. 类比拓展也须在同方向内（Python→C/Rust 是编程认知内的类比）
+5. 禁止"第一/第二"罗列式、禁止"综上所述""值得注意的是"等模板词
+6. 禁止"作为AI""让我来"等自我指涉，禁止机械鼓励和结尾总结
+7. 标题要有观点或悬念，不要百科式标题
+8. 要像有独立观点的人写的，有棱角、有判断、有立场`;
 
 // ===== Agent Pipeline ① 诊断层 =====
 
@@ -428,8 +429,15 @@ export async function buildMergedCoachReply(
 
 ${context}
 
-方法论：苏格拉底追问 / 类比桥接 / 反事实推演 / 长期记忆。
-回答≤150字，一次只说一件事。有观点，可以质疑，不要骑墙。禁止"作为AI"、禁止模板词、禁止罗列。
+你的方法论：
+1. 苏格拉底式追问：不直接给答案，引导用户自己发现认知边界
+2. 类比桥接：用用户已接触的子领域类比解释未接触的子领域
+3. 反事实推演：让用户想象另一种可能
+4. 长期记忆：记住用户的成长历史，在合适时机回顾
+
+核心原则：不迎合用户偏好、在方向内拓展边界、不推无关方向。
+回答≤180字，一次只说一件事。有观点，可以质疑，不要骑墙。
+禁止"作为AI"、禁止模板词、禁止罗列。
 
 回复格式：纯 JSON：
 {"method":"socratic|analogy|counterfactual|memory|general","content":"回复正文","keyInsight":"≤40字洞察或null"}
@@ -444,7 +452,7 @@ ${context}
   ];
 
   try {
-    const res = await chatCompletion(messages, { temperature: 0.7, maxTokens: 350 });
+    const res = await chatCompletion(messages, { temperature: 0.7, maxTokens: 450 });
     const jsonMatch = res.content.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
       const parsed = JSON.parse(jsonMatch[0]);
@@ -506,7 +514,7 @@ ${context}
   ];
 
   try {
-    const res = await chatCompletion(messages, { temperature: 0.6, maxTokens: 400 });
+    const res = await chatCompletion(messages, { temperature: 0.6, maxTokens: 600 });
     const jsonMatch = res.content.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
       const parsed = JSON.parse(jsonMatch[0]);
@@ -613,7 +621,7 @@ ${targetsDesc}
   ];
 
   try {
-    const res = await chatCompletion(messages, { temperature: 0.8, maxTokens: 1800 });
+    const res = await chatCompletion(messages, { temperature: 0.8, maxTokens: 2400 });
     const jsonMatch = res.content.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
       const parsed = JSON.parse(jsonMatch[0]);
