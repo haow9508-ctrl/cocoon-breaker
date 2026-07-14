@@ -1,12 +1,18 @@
-// ===== DeepSeek LLM Client v6.0 =====
+// ===== LLM Client v6.2 =====
 // 认知成长教练 Agent — 服务持续提升认知的人，在既定方向内拓展视野
-// DeepSeek 在所有阶段都扮演"认知成长教练"角色
+// 支持任意 OpenAI 兼容 API（DeepSeek / Step Plan / 其他）
+// 通过环境变量配置：DEEPSEEK_BASE_URL / DEEPSEEK_MODEL / DEEPSEEK_API_KEY
 // v6.0 重构：移除固定 24 维度，改为"认知大方向 + 方向内子领域树"动态模型
 
 import type { CognitiveDirection, SubfieldNode } from "../_knowledge/domains.js";
 
-const DEEPSEEK_BASE = process.env.DEEPSEEK_BASE_URL || "https://api.deepseek.com/v1";
+const LLM_BASE = process.env.DEEPSEEK_BASE_URL || "https://api.deepseek.com/v1";
 const MODEL = process.env.DEEPSEEK_MODEL || "deepseek-chat";
+
+// 启动时打印当前使用的 API 配置（方便排查 Railway 部署问题）
+console.log(`[LLM] API Base: ${LLM_BASE}`);
+console.log(`[LLM] Model: ${MODEL}`);
+console.log(`[LLM] API Key: ${process.env.DEEPSEEK_API_KEY ? "已配置 (" + process.env.DEEPSEEK_API_KEY.slice(0, 8) + "...)" : "未配置"}`);
 
 // 运行时读取，优先使用环境变量
 function getApiKey(): string {
@@ -28,17 +34,17 @@ export function isApiKeyConfigured(): boolean {
   return !!getApiKey();
 }
 
-/** 通用 DeepSeek 调用函数 */
+/** 通用 LLM 调用函数（兼容任意 OpenAI 格式 API） */
 export async function chatCompletion(
   messages: ChatMessage[],
   options?: { temperature?: number; maxTokens?: number }
 ): Promise<LLMResponse> {
   const apiKey = getApiKey();
   if (!apiKey) {
-    throw new Error("DEEPSEEK_API_KEY not configured");
+    throw new Error("API_KEY not configured");
   }
 
-  const res = await fetch(`${DEEPSEEK_BASE}/chat/completions`, {
+  const res = await fetch(`${LLM_BASE}/chat/completions`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -55,7 +61,7 @@ export async function chatCompletion(
 
   if (!res.ok) {
     const errText = await res.text();
-    throw new Error(`DeepSeek API error (${res.status}): ${errText}`);
+    throw new Error(`LLM API error (${res.status}): ${errText}`);
   }
 
   const data: any = await res.json();
@@ -106,7 +112,7 @@ ${renderDirections(profile.directions || [])}
 
 /**
  * 内容生成的抗 GEO prompt 增强
- * 防止 DeepSeek 生成被 GEO 优化的"流行叙事"
+ * 防止 LLM 生成被 GEO 优化的"流行叙事"
  */
 export const ANTI_GEO_DIRECTIVE = `规则：
 1. 不要生成搜索引擎热门的"流行科普"——那些往往是 GEO 优化产物
@@ -266,7 +272,7 @@ export async function analyzeDirections(
     }
   }
 
-  throw new Error("DeepSeek 分析失败：无法识别认知大方向");
+  throw new Error("LLM 分析失败：无法识别认知大方向");
 }
 
 // ===== Agent Pipeline ④ 生成层 =====
@@ -275,7 +281,7 @@ export async function analyzeDirections(
  * 挑战内容结构（v6.0）
  * - directionId / directionName：所属认知大方向
  * - subfieldId / subfieldName：方向内具体子领域（拓展目标）
- * - sourceType：内容来源类型，bing=实时互联网检索 / deepseek_fallback=DeepSeek 降级生成
+ * - sourceType：内容来源类型，bing=实时互联网检索 / deepseek_fallback=LLM 降级生成
  */
 export interface ChallengeContent {
   directionId: string;
@@ -289,15 +295,15 @@ export interface ChallengeContent {
   readTimeMinutes: number;
   difficultyLevel: "L1" | "L2" | "L3";
   coachGuidance: string; // 教练引导语（类比桥接，用用户已接触子领域做类比）
-  sourceType?: "bing" | "deepseek_fallback"; // Bing 实时互联网检索 / DeepSeek 降级
+  sourceType?: "bing" | "deepseek_fallback"; // Bing 实时互联网检索 / LLM 降级
   sourceUrl?: string; // 真实链接（RAG 检索时提供）
 }
 
 /**
  * ④ 生成：基于方向内子领域生成挑战内容
  * - 输入：选中的拓展子领域（在用户大方向内，认知相邻但未接触）
- * - v6.0：优先基于 RAG 检索的真实内容生成（Bing 实时互联网），DeepSeek 只做教练引导
- * - RAG 无结果时 fallback 到纯 DeepSeek 生成，并标注 sourceType: "deepseek_fallback"
+ * - v6.0：优先基于 RAG 检索的真实内容生成（Bing 实时互联网），LLM 只做教练引导
+ * - RAG 无结果时 fallback 到纯 LLM 生成，并标注 sourceType: "deepseek_fallback"
  */
 export async function generateChallenge(
   expansionTargets: Array<{
@@ -341,7 +347,7 @@ export async function generateChallenge(
       ).join("\n");
       ragParts.push(`子领域 ${subfieldId} 的真实检索内容（Bing 实时互联网）：\n${docs}`);
     }
-    ragContext = `\n\n=== RAG 检索到的真实内容（来自 Bing 实时互联网检索，抗 GEO）===\n${ragParts.join("\n\n")}\n\n重要：请基于以上真实内容生成，标题和来源必须用检索到的真实内容。DeepSeek 只做：1) why 推荐理由；2) coachGuidance 类比引导；3) description 内容重组（保留事实，不要编造）。`;
+    ragContext = `\n\n=== RAG 检索到的真实内容（来自 Bing 实时互联网检索，抗 GEO）===\n${ragParts.join("\n\n")}\n\n重要：请基于以上真实内容生成，标题和来源必须用检索到的真实内容。LLM 只做：1) why 推荐理由；2) coachGuidance 类比引导；3) description 内容重组（保留事实，不要编造）。`;
   }
 
   const messages: ChatMessage[] = [
@@ -401,7 +407,7 @@ ${knownDesc}${ragContext}
     }
   }
 
-  throw new Error("DeepSeek 内容生成失败：无法解析生成结果");
+  throw new Error("LLM 内容生成失败：无法解析生成结果");
 }
 
 // ===== Agent Pipeline ⑦ 对话层（合并版：回复+洞察一次生成）=====

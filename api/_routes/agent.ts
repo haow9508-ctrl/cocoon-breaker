@@ -18,7 +18,7 @@ router.post("/diagnose", async (req: Request, res: Response) => {
   const { nickname, messages } = req.body;
   try {
     if (!isApiKeyConfigured()) {
-      res.status(500).json({ success: false, error: "DEEPSEEK_API_KEY not configured" });
+      res.status(500).json({ success: false, error: "API_KEY not configured" });
       return;
     }
     const reply = await diagnoseConversation(messages || [], nickname || "探索者");
@@ -34,7 +34,7 @@ router.post("/analyze", async (req: Request, res: Response) => {
   const { input } = req.body;
   try {
     if (!isApiKeyConfigured()) {
-      res.status(500).json({ success: false, error: "DEEPSEEK_API_KEY not configured" });
+      res.status(500).json({ success: false, error: "API_KEY not configured" });
       return;
     }
     const result = await analyzeDirections(input || "");
@@ -57,7 +57,7 @@ router.post("/challenge", async (req: Request, res: Response) => {
   const { directions, readHistory, impactHistory, difficultyLevel } = req.body;
   try {
     if (!isApiKeyConfigured()) {
-      res.status(500).json({ success: false, error: "DEEPSEEK_API_KEY not configured" });
+      res.status(500).json({ success: false, error: "API_KEY not configured" });
       return;
     }
 
@@ -92,7 +92,7 @@ router.post("/assess", async (req: Request, res: Response) => {
   } = req.body;
   try {
     if (!isApiKeyConfigured()) {
-      res.status(500).json({ success: false, error: "DEEPSEEK_API_KEY not configured" });
+      res.status(500).json({ success: false, error: "API_KEY not configured" });
       return;
     }
 
@@ -243,7 +243,7 @@ router.post("/coach", async (req: Request, res: Response) => {
   const { message, history, profile } = req.body;
   try {
     if (!isApiKeyConfigured()) {
-      res.status(500).json({ success: false, error: "DEEPSEEK_API_KEY not configured" });
+      res.status(500).json({ success: false, error: "API_KEY not configured" });
       return;
     }
 
@@ -278,7 +278,7 @@ router.post("/content", async (req: Request, res: Response) => {
   const { directionId, subfieldId, directions, difficultyLevel } = req.body;
   try {
     if (!isApiKeyConfigured()) {
-      res.status(500).json({ success: false, error: "DEEPSEEK_API_KEY not configured" });
+      res.status(500).json({ success: false, error: "API_KEY not configured" });
       return;
     }
 
