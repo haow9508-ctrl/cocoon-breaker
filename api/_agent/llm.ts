@@ -5,12 +5,12 @@
 
 import type { CognitiveDirection, SubfieldNode } from "../_knowledge/domains.js";
 
-const DEEPSEEK_BASE = "https://api.deepseek.com/v1";
-const MODEL = "deepseek-chat";
+const DEEPSEEK_BASE = process.env.DEEPSEEK_BASE_URL || "https://api.deepseek.com/v1";
+const MODEL = process.env.DEEPSEEK_MODEL || "deepseek-chat";
 
-// 运行时读取，优先使用环境变量，回退到内置密钥（Railway 部署用）
+// 运行时读取，优先使用环境变量
 function getApiKey(): string {
-  return process.env.DEEPSEEK_API_KEY || "sk-55ab81d9334f41988ac612fac4dd4166";
+  return process.env.DEEPSEEK_API_KEY || "";
 }
 
 export interface ChatMessage {
