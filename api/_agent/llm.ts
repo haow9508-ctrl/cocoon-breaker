@@ -452,7 +452,7 @@ ${context}
   ];
 
   try {
-    const res = await chatCompletion(messages, { temperature: 0.7, maxTokens: 450 });
+    const res = await chatCompletion(messages, { temperature: 0.7, maxTokens: 600 });
     const jsonMatch = res.content.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
       const parsed = JSON.parse(jsonMatch[0]);
@@ -499,22 +499,34 @@ export async function generateMergedFeedback(
 ${context}
 
 输出纯 JSON，包含：
-- feedback: 教练反馈（≤80字，有立场有观点，不要空泛鼓励。冲击分高就说哪里好或给更深的追问，冲击分低可以质疑）
-- keyInsight: 关键洞察（≤40字，第三人称记录"用户..."，无价值则输出 null）
-- practiceScaffold: 24h内可完成的行动建议（{action:具体行动, timeframe:时间框架, successHint:成功标志}）
+- feedback: 教练反馈（不超过 100 字）
+  - 冲击分高(4-5星)：不要说"太棒了"，要说具体哪里好、或者指出一个更深的追问
+  - 冲击分中(3星)：直接补充一个用户可能错过的视角，不要铺垫
+  - 冲击分低(1-2星)：可以质疑——"这篇内容对你来说可能太浅了"或"你是不是已经有这个认知了"
+  - 要有立场，不要骑墙。可以不同意用户的反思
+  - 像微信聊天，一次只说一件事，不要罗列
+  - 禁止"作为AI""让我来""你的思考很有深度"
+- keyInsight: 关键洞察（≤50字，第三人称记录"用户..."，关于用户认知偏见的发现或教练识别的思维模式。无价值则输出 null）
+- practiceScaffold: 24h内可完成的行动建议
+  - action: 具体可执行的行动（不是"多思考"这种空话）
+  - timeframe: 时间框架（24小时内）
+  - successHint: 成功标志——怎么知道做对了
+  - 如果冲击分低（≤2），给更轻量的行动
 
 规则：不要罗列、不要"作为AI"、不要模板连接词、不要结尾总结。只输出 JSON。`,
     },
     {
       role: "user",
-      content: `读了《${title}》(${directionName}/${subfieldName})
+      content: `我读了《${title}》（${directionName} / ${subfieldName}）
 冲击自评：${impactScore}星
-反思：${reflection || "（未写反思）"}`,
+我的反思：${reflection || "（用户没有写反思）"}
+
+请给我反馈、洞察和行动建议：`,
     },
   ];
 
   try {
-    const res = await chatCompletion(messages, { temperature: 0.6, maxTokens: 600 });
+    const res = await chatCompletion(messages, { temperature: 0.6, maxTokens: 900 });
     const jsonMatch = res.content.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
       const parsed = JSON.parse(jsonMatch[0]);
@@ -593,35 +605,51 @@ export async function evaluateAndGenerateChallenge(
   const messages: ChatMessage[] = [
     {
       role: "system",
-      content: `你是认知成长教练，一次性完成两件事：1) 评估每个子领域的拓展价值 2) 为每个子领域生成挑战内容。
+      content: `你是「茧房爆破器」的认知成长教练。一次性完成两件事：1) 评估每个子领域的拓展价值 2) 为每个子领域生成挑战内容。
 
 ${difficultyHint}
+
+核心原则：
+1. 标题要有吸引力、有悬念，不要百科式标题
+2. 摘要 150-200 字，要有洞察力、有冲击力，能让人产生"原来如此"的感觉
+3. 来源标注真实（维基百科/学术论文/经典著作/科学期刊/权威博客）
+4. 阅读时间 5-10 分钟
+5. coachGuidance：用用户已接触的子领域做类比桥接，一句话引导用户进入内容
+6. 推荐理由(why)：一句话说明为什么这条内容能在用户既定方向内拓展视野${hasRag ? "\n7. 【重要】已提供真实检索内容，必须基于这些内容生成，不要凭空编造标题和来源" : ""}
+
+拓展价值定义：
+- 0.9-1.0：核心拓展——同方向内必学的高价值子领域
+- 0.7-0.8：高价值——同方向内重要分支
+- 0.5-0.6：中等——同方向内相关分支
+- 0.3-0.4：较低——方向内边缘子领域
+- 0.1-0.2：低——过于冷门或重合度高
 
 ${ANTI_GEO_DIRECTIVE}
 
 输出纯 JSON 对象：
 {
   "items": [
-    { "directionId": "", "directionName": "", "subfieldId": "", "subfieldName": "", "title": "", "why": "", "description": "150字", "source": "", "readTimeMinutes": 5, "coachGuidance": "类比引导"${hasRag ? ", \"sourceUrl\": \"\"" : ""} }
+    { "directionId": "", "directionName": "", "subfieldId": "", "subfieldName": "", "title": "", "why": "", "description": "150-200字", "source": "", "readTimeMinutes": 5, "coachGuidance": "类比引导"${hasRag ? ", \"sourceUrl\": \"\"" : ""} }
   ],
   "scores": { "subfieldId": 0.8 }
 }
 
-标题要有观点，不要百科式。只输出 JSON。`,
+只输出 JSON。`,
     },
     {
       role: "user",
-      content: `拓展子领域：
+      content: `需要生成内容的拓展子领域（在用户认知大方向内）：
 ${targetsDesc}
 
-用户已接触子领域：${knownDesc}${ragContext}
+用户已接触的子领域（用于类比桥接）：
+${knownDesc}${ragContext}
 
-为这 ${expansionTargets.length} 个子领域各生成一篇内容，并评估每个的拓展价值（0-1）。输出 JSON：`,
+请为这 ${expansionTargets.length} 个拓展子领域各生成一篇内容，并评估每个的拓展价值（0-1）。输出 JSON：`,
     },
   ];
 
   try {
-    const res = await chatCompletion(messages, { temperature: 0.8, maxTokens: 2400 });
+    const res = await chatCompletion(messages, { temperature: 0.8, maxTokens: 3000 });
     const jsonMatch = res.content.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
       const parsed = JSON.parse(jsonMatch[0]);
