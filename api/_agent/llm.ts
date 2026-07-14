@@ -7,16 +7,17 @@
 import type { CognitiveDirection, SubfieldNode } from "../_knowledge/domains.js";
 
 // 动态读取（不缓存在模块级常量，确保 dotenv 加载后能读到最新值）
+// trim() 防御 Railway 等平台在环境变量前后引入不可见字符
 function getBaseUrl(): string {
-  return process.env.DEEPSEEK_BASE_URL || "https://api.deepseek.com/v1";
+  return (process.env.DEEPSEEK_BASE_URL || "https://api.deepseek.com/v1").trim();
 }
 function getModel(): string {
-  return process.env.DEEPSEEK_MODEL || "deepseek-chat";
+  return (process.env.DEEPSEEK_MODEL || "deepseek-chat").trim();
 }
 
 // 运行时读取，优先使用环境变量
 function getApiKey(): string {
-  return process.env.DEEPSEEK_API_KEY || "";
+  return (process.env.DEEPSEEK_API_KEY || "").trim();
 }
 
 export interface ChatMessage {
